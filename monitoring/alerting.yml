@@ -1,0 +1,363 @@
+# Prometheus Alerting Rules for MMORPG Backend
+groups:
+  - name: mmorpg_system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(mmorpg_nodejs_process_cpu_user_seconds_total[5m]) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for more than 2 minutes"
+
+      - alert: CriticalCPUUsage
+        expr: rate(mmorpg_nodejs_process_cpu_user_seconds_total[5m]) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value }}% for more than 1 minute"
+
+      - alert: HighMemoryUsage
+        expr: (mmorpg_nodejs_process_resident_memory_bytes / (1024*1024*1024)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}GB for more than 5 minutes"
+
+      - alert: MemoryLeak
+        expr: increase(mmorpg_nodejs_heap_size_used_bytes[30m]) > 104857600
+        for: 0m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Potential memory leak detected"
+          description: "Heap memory increased by {{ $value | humanizeBytes }} in 30 minutes"
+
+  - name: mmorpg_performance_alerts
+    rules:
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(mmorpg_http_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      - alert: CriticalResponseTime
+        expr: histogram_quantile(0.95, rate(mmorpg_http_request_duration_seconds_bucket[5m])) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Critical response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      - alert: HighErrorRate
+        expr: rate(mmorpg_http_requests_total{status_code!~"2.."}[5m]) / rate(mmorpg_http_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}%"
+
+      - alert: CriticalErrorRate
+        expr: rate(mmorpg_http_requests_total{status_code!~"2.."}[5m]) / rate(mmorpg_http_requests_total[5m]) * 100 > 10
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value }}%"
+
+  - name: mmorpg_application_alerts
+    rules:
+      - alert: LowCacheHitRate
+        expr: mmorpg_cache_hit_rate{cache_type="redis"} * 100 < 70
+        for: 5m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value }}%"
+
+      - alert: HighEventQueueSize
+        expr: mmorpg_event_queue_size{status="pending"} > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High event queue size"
+          description: "Event queue has {{ $value }} pending events"
+
+      - alert: CriticalEventQueueSize
+        expr: mmorpg_event_queue_size{status="pending"} > 5000
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Critical event queue size"
+          description: "Event queue has {{ $value }} pending events"
+
+      - alert: DatabaseConnectionsHigh
+        expr: mmorpg_database_connections{state="active"} > 40
+        for: 3m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active database connections"
+
+      - alert: NoActivePlayers
+        expr: mmorpg_active_players == 0
+        for: 10m
+        labels:
+          severity: info
+          service: mmorpg-backend
+        annotations:
+          summary: "No active players"
+          description: "No players are currently active"
+
+      - alert: TooManyActivePlayers
+        expr: mmorpg_active_players > 10000
+        for: 1m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High number of active players"
+          description: "{{ $value }} players are currently active"
+
+  - name: mmorpg_business_alerts
+    rules:
+      - alert: LowPlayerActivity
+        expr: rate(mmorpg_player_actions_total[5m]) * 60 < 10
+        for: 10m
+        labels:
+          severity: info
+          service: mmorpg-backend
+        annotations:
+          summary: "Low player activity"
+          description: "Player actions per minute: {{ $value }}"
+
+      - alert: UnusualCombatActivity
+        expr: rate(mmorpg_combat_events_total[5m]) * 60 > 1000
+        for: 5m
+        labels:
+          severity: info
+          service: mmorpg-backend
+        annotations:
+          summary: "Unusual combat activity"
+          description: "Combat events per minute: {{ $value }}"
+
+      - alert: RegionOverload
+        expr: mmorpg_active_players > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "Region overload detected"
+          description: "Region {{ $labels.region }} has {{ $value }} players"
+
+  - name: mmorpg_infrastructure_alerts
+    rules:
+      - alert: ServiceDown
+        expr: up{job="mmorpg-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "MMORPG Backend service is down"
+          description: "The MMORPG backend service has been down for more than 1 minute"
+
+      - alert: DatabaseDown
+        expr: mmorpg_database_connections{state="active"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Database connection lost"
+          description: "No active database connections detected"
+
+      - alert: CacheDown
+        expr: mmorpg_cache_hit_rate{cache_type="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Cache service down"
+          description: "Redis cache appears to be down"
+
+      - alert: EventBusDown
+        expr: mmorpg_event_queue_size == 0 and rate(mmorpg_game_events_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "Event bus appears down"
+          description: "No events being processed"
+
+  - name: mmorpg_security_alerts
+    rules:
+      - alert: HighFailedLoginRate
+        expr: rate(mmorpg_http_requests_total{route="/api/auth/login", status_code="401"}[5m]) * 60 > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "High failed login rate"
+          description: "{{ $value }} failed logins per minute"
+
+      - alert: SuspiciousActivity
+        expr: rate(mmorpg_http_requests_total{status_code="403"}[5m]) * 60 > 50
+        for: 1m
+        labels:
+          severity: warning
+          service: mmorpg-backend
+        annotations:
+          summary: "Suspicious activity detected"
+          description: "{{ $value }} forbidden requests per minute"
+
+      - alert: UnauthorizedAccess
+        expr: rate(mmorpg_http_requests_total{status_code="401"}[5m]) * 60 > 100
+        for: 1m
+        labels:
+          severity: critical
+          service: mmorpg-backend
+        annotations:
+          summary: "High unauthorized access attempts"
+          description: "{{ $value }} unauthorized requests per minute"
+
+# Alert Manager Configuration
+alertmanager_config: |
+  global:
+    smtp_smarthost: 'localhost:587'
+    smtp_from: 'alerts@mmorpg-backend.com'
+
+  route:
+    group_by: ['alertname', 'service']
+    group_wait: 10s
+    group_interval: 10s
+    repeat_interval: 1h
+    receiver: 'web.hook'
+    routes:
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 5s
+        repeat_interval: 15m
+      - match:
+          severity: warning
+        receiver: 'warning-alerts'
+        repeat_interval: 1h
+      - match:
+          severity: info
+        receiver: 'info-alerts'
+        repeat_interval: 6h
+
+  receivers:
+    - name: 'web.hook'
+      webhook_configs:
+        - url: 'http://localhost:3000/api/alerts/webhook'
+          send_resolved: true
+
+    - name: 'critical-alerts'
+      email_configs:
+        - to: 'oncall@mmorpg-backend.com'
+          subject: '[CRITICAL] MMORPG Backend Alert'
+          body: |
+            Alert: {{ .GroupLabels.alertname }}
+            Severity: {{ .CommonLabels.severity }}
+            Service: {{ .CommonLabels.service }}
+            
+            {{ range .Alerts }}
+            Summary: {{ .Annotations.summary }}
+            Description: {{ .Annotations.description }}
+            {{ end }}
+      slack_configs:
+        - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+          channel: '#critical-alerts'
+          title: 'Critical Alert - MMORPG Backend'
+          text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+
+    - name: 'warning-alerts'
+      email_configs:
+        - to: 'devops@mmorpg-backend.com'
+          subject: '[WARNING] MMORPG Backend Alert'
+          body: |
+            Alert: {{ .GroupLabels.alertname }}
+            Severity: {{ .CommonLabels.severity }}
+            Service: {{ .CommonLabels.service }}
+            
+            {{ range .Alerts }}
+            Summary: {{ .Annotations.summary }}
+            Description: {{ .Annotations.description }}
+            {{ end }}
+
+    - name: 'info-alerts'
+      slack_configs:
+        - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+          channel: '#info-alerts'
+          title: 'Info Alert - MMORPG Backend'
+          text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+
+  inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'service']
+
+# Recording Rules for Performance Metrics
+recording_rules: |
+  groups:
+    - name: mmorpg_recording_rules
+      interval: 30s
+      rules:
+        - record: mmorpg:response_time_p95
+          expr: histogram_quantile(0.95, rate(mmorpg_http_request_duration_seconds_bucket[5m]))
+
+        - record: mmorpg:response_time_p99
+          expr: histogram_quantile(0.99, rate(mmorpg_http_request_duration_seconds_bucket[5m]))
+
+        - record: mmorpg:error_rate
+          expr: rate(mmorpg_http_requests_total{status_code!~"2.."}[5m]) / rate(mmorpg_http_requests_total[5m]) * 100
+
+        - record: mmorpg:request_rate
+          expr: rate(mmorpg_http_requests_total[5m]) * 60
+
+        - record: mmorpg:cpu_usage_percent
+          expr: rate(mmorpg_nodejs_process_cpu_user_seconds_total[5m]) * 100
+
+        - record: mmorpg:memory_usage_mb
+          expr: mmorpg_nodejs_process_resident_memory_bytes / 1024 / 1024
+
+        - record: mmorpg:active_players_total
+          expr: sum(mmorpg_active_players)
+
+        - record: mmorpg:events_per_minute
+          expr: rate(mmorpg_game_events_total[5m]) * 60

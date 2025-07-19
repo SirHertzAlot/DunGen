@@ -1,0 +1,373 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "MMORPG Performance Dashboard",
+    "tags": ["mmorpg", "performance", "latency"],
+    "style": "dark",
+    "timezone": "browser",
+    "editable": true,
+    "graphTooltip": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h"]
+    },
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Response Time Overview",
+        "type": "stat",
+        "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(mmorpg_response_time_seconds_bucket[5m])) * 1000",
+            "legendFormat": "P50 Response Time",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket[5m])) * 1000",
+            "legendFormat": "P95 Response Time",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(mmorpg_response_time_seconds_bucket[5m])) * 1000",
+            "legendFormat": "P99 Response Time",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(mmorpg_response_time_seconds_sum[5m]) / rate(mmorpg_response_time_seconds_count[5m]) * 1000",
+            "legendFormat": "Avg Response Time",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "color": {"mode": "palette-classic"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 500}
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "API Response Times by Endpoint",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 3},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_http_request_duration_seconds_bucket[5m])) * 1000",
+            "legendFormat": "{{route}} (P95)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "scaleDistribution": {"type": "linear"},
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "multi", "sort": "desc"},
+          "legend": {"displayMode": "visible", "placement": "bottom"}
+        }
+      },
+      {
+        "id": 3,
+        "title": "Event Processing Latency",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 3},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket{operation=\"event_processing\"}[5m])) * 1000",
+            "legendFormat": "Event Processing (P95)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket{operation=\"unity_ecs\"}[5m])) * 1000",
+            "legendFormat": "Unity ECS Processing (P95)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Database Query Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 11},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket{operation=\"database_query\"}[5m])) * 1000",
+            "legendFormat": "DB Query (P95)",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(mmorpg_response_time_seconds_count{operation=\"database_query\"}[5m]) * 60",
+            "legendFormat": "Queries/min",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {"mode": "palette-classic"}
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Queries/min"},
+              "properties": [
+                {"id": "unit", "value": "qps"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "Cache Performance",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 11},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket{operation=\"cache_get\"}[5m])) * 1000",
+            "legendFormat": "Cache Get (P95)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(mmorpg_response_time_seconds_bucket{operation=\"cache_set\"}[5m])) * 1000",
+            "legendFormat": "Cache Set (P95)",
+            "refId": "B"
+          },
+          {
+            "expr": "mmorpg_cache_hit_rate * 100",
+            "legendFormat": "Hit Rate %",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "min": 0,
+            "color": {"mode": "palette-classic"}
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Hit Rate %"},
+              "properties": [
+                {"id": "unit", "value": "percent"},
+                {"id": "custom.axisPlacement", "value": "right"},
+                {"id": "min", "value": 0},
+                {"id": "max", "value": 100}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Player Action Latency by Type",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 19},
+        "targets": [
+          {
+            "expr": "rate(mmorpg_response_time_seconds_bucket{operation=\"player_action\"}[5m])",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "scaleDistribution": {"type": "linear"}
+            }
+          }
+        },
+        "options": {
+          "calculate": false,
+          "cellGap": 2,
+          "cellValues": {},
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "spectrum",
+            "reverse": false,
+            "scale": "exponential",
+            "scheme": "Oranges",
+            "steps": 64
+          },
+          "exemplars": {"color": "rgba(255,0,255,0.7)"},
+          "filterValues": {"le": 1e-9},
+          "legend": {"show": false},
+          "rowsFrame": {"layout": "auto"},
+          "tooltip": {"show": true, "yHistogram": false},
+          "yAxis": {
+            "axisPlacement": "left",
+            "reverse": false,
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Throughput Metrics",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
+        "targets": [
+          {
+            "expr": "rate(mmorpg_player_actions_total[5m]) * 60",
+            "legendFormat": "Player Actions/min",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(mmorpg_game_events_total[5m]) * 60",
+            "legendFormat": "Game Events/min",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(mmorpg_combat_events_total[5m]) * 60",
+            "legendFormat": "Combat Events/min",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "evtps",
+            "min": 0,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Error Rate by Status Code",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
+        "targets": [
+          {
+            "expr": "rate(mmorpg_http_requests_total{status_code=\"400\"}[5m]) * 60",
+            "legendFormat": "400 Bad Request",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(mmorpg_http_requests_total{status_code=\"401\"}[5m]) * 60",
+            "legendFormat": "401 Unauthorized",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(mmorpg_http_requests_total{status_code=\"403\"}[5m]) * 60",
+            "legendFormat": "403 Forbidden",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(mmorpg_http_requests_total{status_code=\"404\"}[5m]) * 60",
+            "legendFormat": "404 Not Found",
+            "refId": "D"
+          },
+          {
+            "expr": "rate(mmorpg_http_requests_total{status_code=\"500\"}[5m]) * 60",
+            "legendFormat": "500 Internal Error",
+            "refId": "E"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "min": 0,
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Resource Utilization",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 35},
+        "targets": [
+          {
+            "expr": "rate(mmorpg_nodejs_process_cpu_user_seconds_total[5m]) * 100",
+            "legendFormat": "CPU Usage %",
+            "refId": "A"
+          },
+          {
+            "expr": "mmorpg_nodejs_process_resident_memory_bytes / mmorpg_nodejs_process_resident_memory_bytes * 100",
+            "legendFormat": "Memory Usage %",
+            "refId": "B"
+          },
+          {
+            "expr": "mmorpg_event_queue_size{status=\"pending\"}",
+            "legendFormat": "Event Queue Size",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {"mode": "palette-classic"}
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Event Queue Size"},
+              "properties": [
+                {"id": "unit", "value": "short"},
+                {"id": "custom.axisPlacement", "value": "right"},
+                {"id": "max", "value": null}
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
