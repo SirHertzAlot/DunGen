@@ -39,7 +39,7 @@ class GameEventQueueProcessor implements IQueueProcessor {
     this.connection = new Redis({
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
-      maxRetriesPerRequest: 3
+      maxRetriesPerRequest: null // Required for BullMQ
     });
 
     // Initialize queues

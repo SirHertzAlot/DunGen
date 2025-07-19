@@ -1,0 +1,213 @@
+{
+  "infrastructure": {
+    "eventBus": {
+      "development": {
+        "type": "memory",
+        "channels": [
+          "unification.events",
+          "unification.player_events", 
+          "unification.region_events",
+          "persistence.player_updates",
+          "persistence.audit",
+          "world.player_events",
+          "world.chat_events",
+          "cache.region_updates"
+        ],
+        "metadata": {
+          "instanceId": "dev-eventbus-001",
+          "region": "local",
+          "environment": "development"
+        }
+      },
+      "production": {
+        "type": "redis",
+        "host": "redis.production.internal",
+        "port": 6379,
+        "maxRetries": 5,
+        "retryDelay": 1000,
+        "channels": [
+          "unification.events",
+          "unification.player_events", 
+          "unification.region_events",
+          "persistence.player_updates",
+          "persistence.audit",
+          "world.player_events",
+          "world.chat_events",
+          "cache.region_updates"
+        ],
+        "metadata": {
+          "instanceId": "prod-eventbus-001",
+          "region": "us-east-1",
+          "environment": "production"
+        }
+      }
+    },
+    "storage": {
+      "development": {
+        "type": "memory",
+        "metadata": {
+          "instanceId": "dev-storage-001",
+          "region": "local",
+          "environment": "development"
+        }
+      },
+      "production": {
+        "type": "postgresql",
+        "connectionString": "${DATABASE_URL}",
+        "poolSize": 20,
+        "maxConnections": 100,
+        "metadata": {
+          "instanceId": "prod-storage-001",
+          "region": "us-east-1",
+          "environment": "production"
+        }
+      }
+    },
+    "queue": {
+      "development": {
+        "type": "memory",
+        "metadata": {
+          "instanceId": "dev-queue-001",
+          "region": "local",
+          "environment": "development"
+        }
+      },
+      "production": {
+        "type": "bullmq",
+        "redisUrl": "${REDIS_URL}",
+        "concurrency": 10,
+        "retryAttempts": 3,
+        "retryDelay": 2000,
+        "metadata": {
+          "instanceId": "prod-queue-001",
+          "region": "us-east-1",
+          "environment": "production"
+        }
+      }
+    },
+    "logging": {
+      "development": {
+        "type": "console",
+        "level": "debug",
+        "metadata": {
+          "instanceId": "dev-logger-001",
+          "region": "local",
+          "environment": "development"
+        }
+      },
+      "production": {
+        "type": "winston",
+        "level": "info",
+        "transports": ["file", "console"],
+        "logDirectory": "/var/log/mmorpg",
+        "metadata": {
+          "instanceId": "prod-logger-001",
+          "region": "us-east-1",
+          "environment": "production"
+        }
+      }
+    },
+    "unificationContainers": {
+      "region_0_0": {
+        "containerId": "container_region_0_0",
+        "serverNode": "node_1",
+        "region": "Starting Plains",
+        "worldId": "world-main",
+        "regionId": "region-0-0",
+        "tickRate": 20,
+        "maxPlayers": 100,
+        "systemSpecs": {
+          "cpu": "2 cores",
+          "memory": "4GB",
+          "storage": "50GB"
+        },
+        "metadata": {
+          "instanceId": "unif-region-0-0",
+          "region": "us-east-1a",
+          "environment": "production"
+        }
+      },
+      "region_0_1": {
+        "containerId": "container_region_0_1", 
+        "serverNode": "node_1",
+        "region": "Dark Forest",
+        "worldId": "world-main",
+        "regionId": "region-0-1",
+        "tickRate": 20,
+        "maxPlayers": 75,
+        "systemSpecs": {
+          "cpu": "2 cores",
+          "memory": "4GB", 
+          "storage": "50GB"
+        },
+        "metadata": {
+          "instanceId": "unif-region-0-1",
+          "region": "us-east-1b",
+          "environment": "production"
+        }
+      },
+      "region_1_0": {
+        "containerId": "container_region_1_0",
+        "serverNode": "node_2", 
+        "region": "Mountain Pass",
+        "worldId": "world-main",
+        "regionId": "region-1-0",
+        "tickRate": 20,
+        "maxPlayers": 50,
+        "systemSpecs": {
+          "cpu": "1 core",
+          "memory": "2GB",
+          "storage": "25GB"
+        },
+        "metadata": {
+          "instanceId": "unif-region-1-0",
+          "region": "us-west-1a",
+          "environment": "production"
+        }
+      }
+    }
+  },
+  "api": {
+    "rest": {
+      "enabled": true,
+      "port": 5000,
+      "rateLimit": {
+        "windowMs": 900000,
+        "max": 1000
+      },
+      "cors": {
+        "enabled": true,
+        "origins": ["http://localhost:3000", "https://*.replit.app"]
+      }
+    },
+    "graphql": {
+      "enabled": true,
+      "endpoint": "/graphql",
+      "playground": true,
+      "introspection": true,
+      "subscriptions": {
+        "enabled": true,
+        "path": "/subscriptions"
+      }
+    },
+    "grpc": {
+      "enabled": true,
+      "port": 50051,
+      "services": ["PlayerService", "WorldService", "EventService"],
+      "reflection": true
+    }
+  },
+  "monitoring": {
+    "prometheus": {
+      "enabled": true,
+      "port": 9090,
+      "path": "/metrics"
+    },
+    "healthChecks": {
+      "enabled": true,
+      "interval": 30000,
+      "timeout": 5000,
+      "endpoints": ["/api/health", "/api/ready"]
+    }
+  }
+}

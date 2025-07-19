@@ -127,4 +127,72 @@ class RedisEventBus implements IEventBus {
   }
 }
 
-export const eventBus = new RedisEventBus();
+// Legacy interface - now using InfrastructureManager with fallback
+export { GameEventMessage };
+
+class LegacyEventBusWrapper {
+  private eventBus: any = null;
+  private initialized: boolean = false;
+  private initPromise: Promise<void>;
+
+  constructor() {
+    this.initPromise = this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      const { infrastructureManager } = await import('../config/InfrastructureManager');
+      await infrastructureManager.initialize();
+      this.eventBus = infrastructureManager.getComponent('eventBus');
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize event bus via infrastructure manager, using fallback:', error);
+      
+      // Fallback to in-memory implementation
+      const { MemoryEventBus } = await import('./interfaces/MemoryEventBus');
+      this.eventBus = new MemoryEventBus();
+      await this.eventBus.initialize({
+        type: 'memory',
+        channels: [
+          'unification.events',
+          'persistence.player_updates',
+          'world.player_events'
+        ],
+        metadata: {
+          instanceId: 'fallback-eventbus',
+          region: 'local',
+          environment: 'development'
+        }
+      });
+      this.initialized = true;
+    }
+  }
+
+  async publish(channel: string, message: GameEventMessage): Promise<void> {
+    await this.initPromise;
+    if (!this.eventBus) {
+      console.warn('EventBus not available, skipping publish');
+      return;
+    }
+    return this.eventBus.publish(channel, message);
+  }
+
+  async subscribe(channel: string, handler: (message: GameEventMessage) => void): Promise<void> {
+    await this.initPromise;
+    if (!this.eventBus) {
+      console.warn('EventBus not available, skipping subscribe');
+      return;
+    }
+    return this.eventBus.subscribe(channel, handler);
+  }
+
+  async disconnect(): Promise<void> {
+    await this.initPromise;
+    if (!this.eventBus) {
+      return;
+    }
+    return this.eventBus.disconnect();
+  }
+}
+
+export const eventBus = new LegacyEventBusWrapper();

@@ -315,10 +315,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
+      // Get region to find unification container
+      const regions = await storage.getAllRegions();
+      const region = regions.find(r => r.id === req.body.regionId) || regions[0];
+      
       const sessionData = {
         playerId: req.params.playerId,
         sessionToken: uuidv4(),
-        regionId: req.body.regionId || 'region_0_0',
+        regionId: region?.id || uuidv4(),
+        unificationContainerId: region?.unificationContainerId || 'default_container',
         ipAddress: req.ip || '127.0.0.1',
         userAgent: req.get('User-Agent')
       };
@@ -372,6 +377,249 @@ export async function registerRoutes(app: Express): Promise<Server> {
         service: 'API',
         requestId,
         sessionId: req.params.sessionId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  // Infrastructure management endpoints (hot-swappable configs)
+  app.get('/api/infrastructure/status', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { infrastructureManager } = await import('../config/InfrastructureManager');
+      const status = await infrastructureManager.getSystemStatus();
+      
+      logger.debug('Infrastructure status retrieved via API', {
+        service: 'API',
+        requestId
+      });
+
+      res.json({ 
+        success: true, 
+        data: status 
+      });
+    } catch (error) {
+      logger.error('Failed to get infrastructure status via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.post('/api/infrastructure/reconfigure', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { nodeType, environment, config } = req.body;
+      
+      if (!nodeType || !environment || !config) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: nodeType, environment, config'
+        });
+      }
+
+      const { infrastructureManager } = await import('../config/InfrastructureManager');
+      await infrastructureManager.reconfigureNode(nodeType, environment, config);
+
+      logger.info('Infrastructure node reconfigured via API', {
+        service: 'API',
+        requestId,
+        nodeType,
+        environment
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Infrastructure node reconfigured successfully',
+        data: { nodeType, environment }
+      });
+    } catch (error) {
+      logger.error('Failed to reconfigure infrastructure node via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(400).json({ 
+        success: false, 
+        error: 'Failed to reconfigure infrastructure node',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/infrastructure/swap-component', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { componentName, componentType, config } = req.body;
+      
+      if (!componentName || !componentType || !config) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: componentName, componentType, config'
+        });
+      }
+
+      const { infrastructureManager } = await import('../config/InfrastructureManager');
+      await infrastructureManager.swapComponent(componentName, config, componentType);
+
+      logger.info('Infrastructure component swapped via API', {
+        service: 'API',
+        requestId,
+        componentName,
+        componentType
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Infrastructure component swapped successfully',
+        data: { componentName, componentType }
+      });
+    } catch (error) {
+      logger.error('Failed to swap infrastructure component via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(400).json({ 
+        success: false, 
+        error: 'Failed to swap infrastructure component',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Game object search endpoints (findable by UUID)
+  app.get('/api/game-objects/:id', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const gameObject = await storage.getGameObject(req.params.id);
+      
+      if (!gameObject) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Game object not found' 
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        data: gameObject
+      });
+    } catch (error) {
+      logger.error('Failed to get game object via API', error as Error, {
+        service: 'API',
+        requestId,
+        gameObjectId: req.params.id
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.get('/api/game-objects', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const searchParams = req.query;
+      const gameObjects = await storage.findGameObjects(searchParams as any);
+      
+      logger.debug('Game objects searched via API', {
+        service: 'API',
+        requestId,
+        resultsCount: gameObjects.length,
+        searchParams: Object.keys(searchParams)
+      });
+
+      res.json({ 
+        success: true, 
+        data: gameObjects,
+        count: gameObjects.length
+      });
+    } catch (error) {
+      logger.error('Failed to search game objects via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.post('/api/game-objects', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      // Validate game object data here if needed
+      const gameObject = await storage.createGameObject(req.body);
+
+      logger.info('Game object created via API', {
+        service: 'API',
+        requestId,
+        gameObjectId: gameObject.id,
+        type: gameObject.type
+      });
+
+      res.status(201).json({ 
+        success: true, 
+        data: gameObject
+      });
+    } catch (error) {
+      logger.error('Failed to create game object via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(400).json({ 
+        success: false, 
+        error: 'Invalid game object data',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Debugging endpoints - trace events by UUID
+  app.get('/api/events/trace/:traceId', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const events = await storage.getEventsByTrace(req.params.traceId);
+      
+      logger.debug('Events traced via API', {
+        service: 'API',
+        requestId,
+        traceId: req.params.traceId,
+        eventsCount: events.length
+      });
+
+      res.json({ 
+        success: true, 
+        data: events,
+        count: events.length
+      });
+    } catch (error) {
+      logger.error('Failed to trace events via API', error as Error, {
+        service: 'API',
+        requestId,
+        traceId: req.params.traceId
       });
       
       res.status(500).json({ 

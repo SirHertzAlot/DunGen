@@ -1,0 +1,401 @@
+# GraphQL Schema for MMORPG Backend
+# Optimized for precise queries and reduced over-fetching
+
+scalar UUID
+scalar DateTime
+scalar JSON
+
+type Query {
+  # World hierarchy queries
+  world(id: UUID!): World
+  worlds: [World!]!
+  
+  # Region queries with optimization
+  region(id: UUID!): Region
+  regions(worldId: UUID): [Region!]!
+  regionWithPlayers(id: UUID!): RegionWithPlayers
+  
+  # Player queries
+  player(id: UUID!): Player
+  playerByUsername(username: String!): Player
+  playersInRegion(regionId: UUID!): [Player!]!
+  playersInWorld(worldId: UUID!): [Player!]!
+  
+  # Game object queries - searchable by UUID
+  gameObject(id: UUID!): GameObject
+  gameObjects(search: GameObjectSearchInput): [GameObject!]!
+  gameObjectsByLocation(worldId: UUID!, regionId: UUID, blockId: UUID, cellId: UUID): [GameObject!]!
+  
+  # Game events and debugging
+  gameEvent(id: UUID!): GameEvent
+  gameEventsByTrace(traceId: UUID!): [GameEvent!]!
+  playerEvents(playerId: UUID!, limit: Int = 50): [GameEvent!]!
+  
+  # Admin queries
+  systemHealth: SystemHealth!
+  regionStatus(regionId: UUID!): RegionStatus!
+}
+
+type Mutation {
+  # Player mutations
+  createPlayer(input: CreatePlayerInput!): Player!
+  updatePlayer(id: UUID!, input: UpdatePlayerInput!): Player!
+  
+  # Player actions (ETL integration)
+  movePlayer(input: PlayerMovementInput!): ActionResult!
+  playerCombat(input: CombatInput!): ActionResult!
+  playerChat(input: ChatInput!): ActionResult!
+  
+  # Game object management
+  createGameObject(input: CreateGameObjectInput!): GameObject!
+  updateGameObject(id: UUID!, input: UpdateGameObjectInput!): GameObject!
+  deleteGameObject(id: UUID!): Boolean!
+  
+  # Session management
+  createSession(playerId: UUID!, regionId: UUID!): Session!
+  endSession(sessionId: UUID!): Boolean!
+}
+
+type Subscription {
+  # Real-time updates per region (sharded)
+  regionUpdates(regionId: UUID!): RegionUpdate!
+  playerUpdates(playerId: UUID!): PlayerUpdate!
+  gameEvents(regionId: UUID!): GameEvent!
+}
+
+# World hierarchy types
+type World {
+  id: UUID!
+  name: String!
+  description: String
+  dimensions: Int!
+  maxPlayers: Int!
+  status: String!
+  regions: [Region!]!
+  createdAt: DateTime!
+}
+
+type Region {
+  id: UUID!
+  worldId: UUID!
+  name: String!
+  gridX: Int!
+  gridY: Int!
+  minX: Float!
+  maxX: Float!
+  minY: Float!
+  maxY: Float!
+  minZ: Float
+  maxZ: Float
+  unificationContainerId: String!
+  serverNode: String!
+  playerCount: Int!
+  maxPlayers: Int!
+  status: String!
+  blocks: [Block!]!
+  createdAt: DateTime!
+}
+
+type Block {
+  id: UUID!
+  regionId: UUID!
+  name: String!
+  gridX: Int!
+  gridY: Int!
+  minX: Float!
+  maxX: Float!
+  minY: Float!
+  maxY: Float!
+  minZ: Float
+  maxZ: Float
+  biome: String
+  generatedObjects: JSON!
+  cells: [Cell!]!
+  createdAt: DateTime!
+}
+
+type Cell {
+  id: UUID!
+  blockId: UUID!
+  gridX: Int!
+  gridY: Int!
+  minX: Float!
+  maxX: Float!
+  minY: Float!
+  maxY: Float!
+  minZ: Float
+  maxZ: Float
+  terrainType: String
+  objects: JSON!
+  createdAt: DateTime!
+}
+
+# Player type with granular positioning
+type Player {
+  id: UUID!
+  username: String!
+  email: String!
+  level: Int!
+  experience: Int!
+  health: Int!
+  mana: Int!
+  
+  # Granular position
+  worldId: UUID!
+  regionId: UUID!
+  blockId: UUID!
+  cellId: UUID!
+  positionX: Float!
+  positionY: Float!
+  positionZ: Float
+  
+  inventory: JSON!
+  stats: JSON!
+  guild: String
+  isOnline: Boolean!
+  lastActive: DateTime!
+  
+  # Related data
+  world: World!
+  region: Region!
+  block: Block!
+  cell: Cell!
+  
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Game objects - all searchable by UUID
+type GameObject {
+  id: UUID!
+  type: String!
+  name: String!
+  
+  # Granular positioning
+  worldId: UUID!
+  regionId: UUID!
+  blockId: UUID!
+  cellId: UUID!
+  positionX: Float!
+  positionY: Float!
+  positionZ: Float
+  
+  properties: JSON!
+  isActive: Boolean!
+  
+  # Related data
+  world: World!
+  region: Region!
+  block: Block!
+  cell: Cell!
+  
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Game events with full tracing
+type GameEvent {
+  id: UUID!
+  traceId: UUID! # For debugging
+  playerId: UUID
+  gameObjectId: UUID
+  eventType: String!
+  eventData: JSON!
+  
+  # Location context
+  worldId: UUID
+  regionId: UUID
+  blockId: UUID
+  cellId: UUID
+  unificationContainerId: String
+  
+  timestamp: DateTime!
+  
+  # Related data
+  player: Player
+  gameObject: GameObject
+}
+
+type Session {
+  id: UUID!
+  playerId: UUID!
+  sessionToken: String!
+  regionId: UUID!
+  unificationContainerId: String!
+  ipAddress: String!
+  userAgent: String
+  startedAt: DateTime!
+  lastActivity: DateTime!
+  endedAt: DateTime
+  isActive: Boolean!
+  
+  # Related data
+  player: Player!
+  region: Region!
+}
+
+# Optimized compound types
+type RegionWithPlayers {
+  region: Region!
+  players: [Player!]!
+  playerCount: Int!
+}
+
+type SystemHealth {
+  status: String!
+  uptime: Int!
+  totalPlayers: Int!
+  totalRegions: Int!
+  activeRegions: Int!
+  eventsProcessed: Int!
+  timestamp: DateTime!
+}
+
+type RegionStatus {
+  region: Region!
+  playerCount: Int!
+  load: Float!
+  unificationContainerStatus: String!
+  lastUpdate: DateTime!
+}
+
+# Input types
+input CreatePlayerInput {
+  username: String!
+  email: String!
+  passwordHash: String!
+  worldId: UUID!
+  regionId: UUID!
+  blockId: UUID!
+  cellId: UUID!
+  positionX: Float = 0
+  positionY: Float = 0
+  positionZ: Float
+}
+
+input UpdatePlayerInput {
+  level: Int
+  experience: Int
+  health: Int
+  mana: Int
+  worldId: UUID
+  regionId: UUID
+  blockId: UUID
+  cellId: UUID
+  positionX: Float
+  positionY: Float
+  positionZ: Float
+  inventory: JSON
+  stats: JSON
+  isOnline: Boolean
+}
+
+input PlayerMovementInput {
+  traceId: UUID!
+  playerId: UUID!
+  fromWorldId: UUID!
+  fromRegionId: UUID!
+  fromBlockId: UUID!
+  fromCellId: UUID!
+  fromX: Float!
+  fromY: Float!
+  fromZ: Float
+  toWorldId: UUID!
+  toRegionId: UUID!
+  toBlockId: UUID!
+  toCellId: UUID!
+  toX: Float!
+  toY: Float!
+  toZ: Float
+}
+
+input CombatInput {
+  traceId: UUID!
+  attackerId: UUID!
+  defenderId: UUID!
+  damage: Int!
+  skill: String!
+  worldId: UUID!
+  regionId: UUID!
+  blockId: UUID!
+  cellId: UUID!
+}
+
+input ChatInput {
+  traceId: UUID!
+  playerId: UUID!
+  channel: ChatChannel!
+  message: String!
+  targetId: UUID
+  worldId: UUID
+  regionId: UUID
+  blockId: UUID
+}
+
+input CreateGameObjectInput {
+  type: String!
+  name: String!
+  worldId: UUID!
+  regionId: UUID!
+  blockId: UUID!
+  cellId: UUID!
+  positionX: Float!
+  positionY: Float!
+  positionZ: Float
+  properties: JSON = {}
+}
+
+input UpdateGameObjectInput {
+  name: String
+  worldId: UUID
+  regionId: UUID
+  blockId: UUID
+  cellId: UUID
+  positionX: Float
+  positionY: Float
+  positionZ: Float
+  properties: JSON
+  isActive: Boolean
+}
+
+input GameObjectSearchInput {
+  type: String
+  name: String
+  worldId: UUID
+  regionId: UUID
+  blockId: UUID
+  cellId: UUID
+  isActive: Boolean
+}
+
+# Enums
+enum ChatChannel {
+  GLOBAL
+  WORLD
+  REGION
+  BLOCK
+  GUILD
+  WHISPER
+}
+
+# Action result type
+type ActionResult {
+  success: Boolean!
+  message: String!
+  traceId: UUID!
+}
+
+# Real-time update types
+type RegionUpdate {
+  regionId: UUID!
+  updateType: String!
+  data: JSON!
+  timestamp: DateTime!
+}
+
+type PlayerUpdate {
+  playerId: UUID!
+  updateType: String!
+  data: JSON!
+  timestamp: DateTime!
+}
