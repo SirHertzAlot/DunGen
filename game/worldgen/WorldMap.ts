@@ -190,6 +190,9 @@ export class WorldMap {
         // Progressive smoothing for realistic terrain
         height = this.applySmoothingFilter(height, worldX, worldZ, biome);
         
+        // Apply high-quality detail enhancement for realistic heightmaps
+        height = this.enhanceHeightmapQuality(worldX, worldZ, height, biome);
+        
         // Apply biome-specific base height and scaling
         height = height + biome.elevation * 15 + (biome.heightScale * 2);
 
@@ -343,6 +346,47 @@ export class WorldMap {
     }
     
     return 1.0; // No modification for other terrain types
+  }
+  
+  private enhanceHeightmapQuality(worldX: number, worldZ: number, height: number, biome: BiomeType): number {
+    // Apply high-quality detail enhancement similar to the reference heightmap
+    
+    // Add micro-detail at multiple scales for realistic surface texture
+    const microDetail1 = this.detailNoise(worldX * 0.5, worldZ * 0.5) * 0.8;
+    const microDetail2 = this.detailNoise(worldX * 1.2, worldZ * 1.2) * 0.4; 
+    const microDetail3 = this.detailNoise(worldX * 2.8, worldZ * 2.8) * 0.2;
+    
+    // Combine micro details with smoothing for natural appearance
+    const combinedDetail = (microDetail1 + microDetail2 + microDetail3) / 3;
+    
+    // Apply detail enhancement based on terrain type
+    let detailStrength = 0.3; // Default detail level
+    
+    if (biome.type === 'mountain') {
+      detailStrength = 0.6; // More detail for mountains
+    } else if (biome.type === 'desert') {
+      detailStrength = 0.4; // Moderate detail for dunes
+    } else if (biome.type === 'grassland' || biome.type === 'forest') {
+      detailStrength = 0.25; // Subtle detail for smoother terrain
+    }
+    
+    // Apply gradient smoothing for natural transitions like in the reference
+    const gradientFactor = this.calculateGradientSmoothness(worldX, worldZ, biome);
+    
+    // Enhanced height with quality details
+    return height + (combinedDetail * detailStrength * gradientFactor);
+  }
+  
+  private calculateGradientSmoothness(worldX: number, worldZ: number, biome: BiomeType): number {
+    // Calculate smooth gradients similar to the high-quality reference heightmap
+    const gradient1 = this.elevationNoise(worldX * 0.02, worldZ * 0.02);
+    const gradient2 = this.moistureNoise(worldX * 0.015, worldZ * 0.015);
+    
+    // Create smooth gradient transitions
+    const combinedGradient = (gradient1 + gradient2) / 2;
+    
+    // Apply smooth falloff for natural appearance
+    return Math.pow(Math.abs(combinedGradient), 0.7); // Smooth power curve for natural gradients
   }
 
   public getBiomeForChunk(chunkX: number, chunkZ: number): BiomeType {
