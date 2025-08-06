@@ -1,4 +1,4 @@
-import { NoiseFunction2D, createNoise2D } from 'simplex-noise';
+import FastNoiseLite from 'fastnoiselite';
 
 export interface BiomeType {
   type: 'grassland' | 'forest' | 'desert' | 'mountain' | 'swamp' | 'tundra' | 'ocean' | 'marsh' | 'bog' | 'cave';
@@ -23,21 +23,36 @@ export interface WorldChunk {
 }
 
 export class WorldMap {
-  private elevationNoise: NoiseFunction2D;
-  private moistureNoise: NoiseFunction2D;
-  private temperatureNoise: NoiseFunction2D;
-  private mountainRangeNoise: NoiseFunction2D;
-  private detailNoise: NoiseFunction2D;
+  private elevationNoise: FastNoiseLite;
+  private moistureNoise: FastNoiseLite;
+  private temperatureNoise: FastNoiseLite;
+  private mountainRangeNoise: FastNoiseLite;
+  private detailNoise: FastNoiseLite;
   
   private chunkCache = new Map<string, WorldChunk>();
   private biomeMap = new Map<string, BiomeType>();
   
   constructor() {
-    this.elevationNoise = createNoise2D();
-    this.moistureNoise = createNoise2D();
-    this.temperatureNoise = createNoise2D();
-    this.mountainRangeNoise = createNoise2D();
-    this.detailNoise = createNoise2D();
+    // Initialize FastNoiseLite with different seeds for varied patterns
+    this.elevationNoise = new FastNoiseLite(1234);
+    this.elevationNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+    this.elevationNoise.SetFrequency(0.01);
+
+    this.moistureNoise = new FastNoiseLite(5678);
+    this.moistureNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+    this.moistureNoise.SetFrequency(0.015);
+
+    this.temperatureNoise = new FastNoiseLite(9012);
+    this.temperatureNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+    this.temperatureNoise.SetFrequency(0.008);
+
+    this.mountainRangeNoise = new FastNoiseLite(3456);
+    this.mountainRangeNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+    this.mountainRangeNoise.SetFrequency(0.005);
+
+    this.detailNoise = new FastNoiseLite(7890);
+    this.detailNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+    this.detailNoise.SetFrequency(0.05);
   }
 
   private getBiomeKey(x: number, z: number): string {
@@ -50,10 +65,10 @@ export class WorldMap {
     const z = chunkZ * scale;
 
     // Generate base terrain features
-    const elevation = (this.elevationNoise(x, z) + 1) / 2;
-    const moisture = (this.moistureNoise(x * 1.5, z * 1.5) + 1) / 2;
-    const temperature = (this.temperatureNoise(x * 0.8, z * 0.8) + 1) / 2;
-    const mountainRange = (this.mountainRangeNoise(x * 0.3, z * 0.3) + 1) / 2;
+    const elevation = (this.elevationNoise.GetNoise(x, z) + 1) / 2;
+    const moisture = (this.moistureNoise.GetNoise(x * 1.5, z * 1.5) + 1) / 2;
+    const temperature = (this.temperatureNoise.GetNoise(x * 0.8, z * 0.8) + 1) / 2;
+    const mountainRange = (this.mountainRangeNoise.GetNoise(x * 0.3, z * 0.3) + 1) / 2;
 
     // Determine biome based on elevation, moisture, and temperature
     let biomeType: BiomeType['type'] = 'grassland';
@@ -121,56 +136,47 @@ export class WorldMap {
         const worldX = chunkX * chunkSize + x;
         const worldZ = chunkZ * chunkSize + z;
         
-        // Completely redesigned noise generation for GRADUAL, AI-TRAVERSABLE terrain
+        // Professional terrain generation using FastNoiseLite with proper fractal noise
         let height = 0;
-        let amplitude = 1.0;
-        let frequency = biome.noiseScale * 0.05; // Much lower frequency for smoother, larger features
-        const persistence = 0.45; // Lower persistence = less harsh detail accumulation
-        const lacunarity = 1.8; // Lower lacunarity = gentler frequency scaling
-        const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
         
-        // Octave 1: Large continental features - VERY gradual base terrain
-        const baseNoise = this.elevationNoise(worldX * frequency, worldZ * frequency);
-        height += Math.pow((baseNoise + 1) / 2, 2) * amplitude * 25; // Squared for gentler transitions
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        // Configure fractal noise for realistic terrain
+        const terrainNoise = new FastNoiseLite(this.hashChunkCoords(chunkX, chunkZ));
+        terrainNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        terrainNoise.SetFractalType(FastNoiseLite.FractalType.FBm);
+        terrainNoise.SetFractalOctaves(6);
+        terrainNoise.SetFractalLacunarity(2.0);
+        terrainNoise.SetFractalGain(0.5);
+        terrainNoise.SetFrequency(biome.noiseScale * 0.01);
         
-        // Octave 2: Regional features - smooth rolling hills
-        const regionalNoise = this.mountainRangeNoise(worldX * frequency, worldZ * frequency);
-        height += Math.pow((regionalNoise + 1) / 2, 1.5) * amplitude * 15; // More gentle power
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        // Generate base height using fractal Brownian motion
+        const noiseValue = terrainNoise.GetNoise(worldX, worldZ);
+        height = ((noiseValue + 1) / 2) * biome.heightScale;
         
-        // Octave 3: Local variation - very subtle
-        const localNoise = this.elevationNoise(worldX * frequency + chunkSeed, worldZ * frequency + chunkSeed);
-        height += ((localNoise + 1) / 2) * amplitude * 8; // Linear for smoothness
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        // Add domain warping for more natural terrain features
+        const warpNoise = new FastNoiseLite(this.hashChunkCoords(chunkX, chunkZ) + 1000);
+        warpNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        warpNoise.SetFrequency(0.005);
         
-        // Octave 4: Surface detail - minimal variation
-        const detailNoise = this.detailNoise(worldX * frequency, worldZ * frequency);
-        height += ((detailNoise + 1) / 2) * amplitude * 4;
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        const warpX = warpNoise.GetNoise(worldX * 0.01, worldZ * 0.01) * 50;
+        const warpZ = warpNoise.GetNoise(worldX * 0.01 + 100, worldZ * 0.01 + 100) * 50;
         
-        // Octave 5: Fine detail - very subtle surface variation
-        const fineNoise = this.detailNoise(worldX * frequency * 1.1, worldZ * frequency * 0.9);
-        height += ((fineNoise + 1) / 2) * amplitude * 2;
+        const warpedNoise = terrainNoise.GetNoise(worldX + warpX, worldZ + warpZ);
+        height += ((warpedNoise + 1) / 2) * biome.heightScale * 0.3;
         
-        // Apply VERY GRADUAL biome-specific elevation with smooth transitions
-        const continentalShape = this.elevationNoise(worldX * 0.001, worldZ * 0.001); // Larger scale
-        const mountainRidge = this.mountainRangeNoise(worldX * 0.002, worldZ * 0.002);
+        // Apply biome-specific terrain modifications
+        const continentalShape = this.elevationNoise.GetNoise(worldX * 0.001, worldZ * 0.001);
+        const mountainRidge = this.mountainRangeNoise.GetNoise(worldX * 0.002, worldZ * 0.002);
         
-        // Mountain regions - MUCH more gradual with AI-friendly slopes
+        // Mountain regions - create realistic mountain terrain
         if (biome.type === 'mountain') {
-          const mountainInfluence = Math.pow((continentalShape + 1) / 2, 3) * Math.pow((mountainRidge + 1) / 2, 2);
-          height += mountainInfluence * 35; // Very moderate mountain heights
+          const mountainInfluence = Math.pow((continentalShape + 1) / 2, 2) * Math.pow((mountainRidge + 1) / 2, 1.5);
+          height += mountainInfluence * 40;
         }
         
-        // Valley regions - gentle depressions, not sharp drops
-        const valleyInfluence = Math.pow(Math.max(0, (-continentalShape + 1) / 2), 2);
-        if (valleyInfluence > 0.3) {
-          height -= valleyInfluence * 8; // Subtle valley depressions
+        // Valley regions - create gentle valleys
+        const valleyInfluence = Math.pow(Math.max(0, (-continentalShape + 1) / 2), 1.5);
+        if (valleyInfluence > 0.2) {
+          height -= valleyInfluence * 15;
         }
         
         // Add slope steepness modifier based on elevation change
