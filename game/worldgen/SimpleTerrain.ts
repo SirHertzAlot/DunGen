@@ -58,8 +58,8 @@ export class SimpleTerrain {
     return (value + 1) / 2; // Normalize to 0-1
   }
 
-  // Generate terrain chunk using configuration-driven system
-  public generateChunk(chunkX: number, chunkZ: number, size: number = 64): TerrainChunk {
+  // Generate terrain chunk using configuration-driven system with dynamic sizing
+  public generateChunk(chunkX: number, chunkZ: number, requestedSize: number = 64): TerrainChunk {
     try {
       const chunkSeed = this.hashChunk(chunkX, chunkZ);
       const biome = this.getBiomeFromConfig(chunkX, chunkZ);
@@ -69,12 +69,21 @@ export class SimpleTerrain {
         throw new Error(`No terrain configuration found for biome: ${biome.type}`);
       }
 
+      // Determine optimal chunk size based on terrain type and neighboring chunks
+      const neighborTypes = this.analyzeNeighboringTerrainTypes(chunkX, chunkZ);
+      const optimalSize = this.configManager.determineChunkSize(biome.type, chunkX, chunkZ, neighborTypes);
+      const scaleFactor = this.configManager.getScaleFactor(optimalSize);
+      const detailLevel = this.configManager.getDetailLevel(optimalSize);
+      
+      // Use the optimal size, but respect requested size as minimum for compatibility
+      const size = Math.max(optimalSize, requestedSize);
+
       const genParams = this.configManager.getGenerationParameters();
       const seedMultipliers = genParams.unique_seed_multipliers;
       
       const heightmap: number[][] = [];
 
-      // Generate heightmap using configuration-driven noise algorithms
+      // Generate heightmap using configuration-driven noise algorithms with scale factor
       for (let z = 0; z < size; z++) {
         heightmap[z] = [];
         for (let x = 0; x < size; x++) {
@@ -83,13 +92,19 @@ export class SimpleTerrain {
           
           let height = 0;
           
-          // Apply each noise algorithm from configuration
+          // Apply each noise algorithm from configuration with scale factor
           for (let i = 0; i < terrainConfig.noise_algorithms.length; i++) {
             const algorithm = terrainConfig.noise_algorithms[i];
             const seedOffset = chunkSeed * seedMultipliers[i % seedMultipliers.length];
             
+            // Apply scale factor to frequency for appropriate detail level
+            const scaledAlgorithm = {
+              ...algorithm,
+              frequency: algorithm.frequency * scaleFactor
+            };
+            
             height += this.noiseEngine.applyNoiseAlgorithm(
-              algorithm,
+              scaledAlgorithm,
               worldX,
               worldZ,
               seedOffset,
@@ -125,7 +140,7 @@ export class SimpleTerrain {
         lastAccessed: Date.now()
       };
 
-      logger.info(`Generated terrain chunk (${chunkX}, ${chunkZ}) - ${biome.type} biome with ${terrainConfig.noise_algorithms.length} algorithms`);
+      logger.info(`Generated ${size}x${size} terrain chunk (${chunkX}, ${chunkZ}) - ${biome.type} biome (${detailLevel} detail, scale: ${scaleFactor}) with ${terrainConfig.noise_algorithms.length} algorithms`);
 
       return chunk;
     } catch (error: any) {
@@ -244,6 +259,29 @@ export class SimpleTerrain {
     const baseHeight = this.noise(worldX, worldZ, biome.noiseScale, biome.heightScale);
     
     return baseHeight;
+  }
+
+  // Analyze neighboring terrain types for better chunk size decisions
+  private analyzeNeighboringTerrainTypes(chunkX: number, chunkZ: number): string[] {
+    const neighbors: string[] = [];
+    
+    // Check adjacent chunks in 8 directions (including diagonals)
+    const offsets = [
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],           [0, 1],
+      [1, -1],  [1, 0],  [1, 1]
+    ];
+    
+    for (const [dx, dz] of offsets) {
+      const neighborX = chunkX + dx;
+      const neighborZ = chunkZ + dz;
+      
+      // Get the terrain type for neighboring chunk
+      const neighborBiome = this.getBiomeFromConfig(neighborX, neighborZ);
+      neighbors.push(neighborBiome.type);
+    }
+    
+    return neighbors;
   }
 
   private getAverageHeight(heightmap: number[][]): number {

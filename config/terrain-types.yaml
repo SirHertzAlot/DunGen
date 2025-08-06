@@ -188,3 +188,55 @@ generation_parameters:
   edge_blending_distance: 12
   feature_spawn_chance: 0.15
   unique_seed_multipliers: [73, 137, 241, 359, 467, 587, 719, 829]
+  
+  # Variable chunk sizing for scale-appropriate terrain features
+  chunk_size_variants:
+    - size: 32          # Small detailed chunks for local variation
+      scale_factor: 0.5
+      detail_level: "high"
+      use_cases: ["caves", "ruins", "detailed_forest"]
+      
+    - size: 64          # Standard chunks for most terrain
+      scale_factor: 1.0 
+      detail_level: "medium"
+      use_cases: ["grassland", "forest", "desert", "swamp"]
+      
+    - size: 128         # Large chunks for major terrain features  
+      scale_factor: 2.0
+      detail_level: "low"
+      use_cases: ["mountain_ranges", "large_valleys", "major_rivers"]
+      
+    - size: 256         # Massive chunks for continental features
+      scale_factor: 4.0
+      detail_level: "continental" 
+      use_cases: ["mountain_systems", "large_deserts", "ocean_basins"]
+
+  # Rules for dynamic chunk size selection
+  chunk_sizing_rules:
+    mountain:
+      preferred_sizes: [128, 256]    # Mountains need large scale
+      min_cluster_size: 3            # Mountains form in clusters
+      
+    desert: 
+      preferred_sizes: [128, 256]    # Deserts are vast
+      min_cluster_size: 2
+      
+    ocean:
+      preferred_sizes: [256]         # Oceans are massive
+      min_cluster_size: 4
+      
+    grassland:
+      preferred_sizes: [64, 128]     # Rolling plains
+      min_cluster_size: 1
+      
+    forest:
+      preferred_sizes: [64, 128]     # Forest patches vary
+      min_cluster_size: 2
+      
+    swamp:
+      preferred_sizes: [32, 64]      # Swamps are localized
+      min_cluster_size: 1
+      
+    tundra:
+      preferred_sizes: [128, 256]    # Tundra spans vast areas
+      min_cluster_size: 2

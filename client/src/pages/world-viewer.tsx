@@ -517,7 +517,7 @@ export default function WorldViewer() {
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold">D&D MMORPG - 3D World Viewer</h1>
+          <h1 className="text-2xl font-bold">D&D MMORPG - Dynamic Terrain Viewer</h1>
           <Badge variant={isConnected ? "default" : "destructive"}>
             {isConnected ? "Connected" : "Disconnected"}
           </Badge>
