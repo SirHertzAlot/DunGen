@@ -84,43 +84,28 @@ export class TerrainConfigManager {
     return config.generation_parameters;
   }
 
-  // Get appropriate chunk size for terrain type and location
+  // Get appropriate chunk size for terrain type - now generates MASSIVE single-feature chunks
   public determineChunkSize(terrainType: string, chunkX: number, chunkZ: number, neighborTypes: string[] = []): number {
     const genParams = this.getGenerationParameters();
     const chunkSizingRules = (genParams as any).chunk_sizing_rules || {};
-    const chunkVariants = (genParams as any).chunk_size_variants || [];
     
     // Get rules for this terrain type
-    const rules = chunkSizingRules[terrainType] || { preferred_sizes: [64], min_cluster_size: 1 };
-    
-    // Check if we're part of a cluster (neighboring chunks of same type)
-    const sameTypeNeighbors = neighborTypes.filter(type => type === terrainType).length;
-    const isInCluster = sameTypeNeighbors >= (rules.min_cluster_size - 1);
+    const rules = chunkSizingRules[terrainType] || { preferred_sizes: [64], grid_scale: false };
     
     // Add some randomness based on chunk coordinates
     const chunkSeed = (chunkX * 73856093 + chunkZ * 19349663) >>> 0;
     const randomFactor = (chunkSeed % 1000) / 1000.0;
     
-    // Select appropriate size based on rules and cluster status
-    let selectedSize = 64; // Default
-    
-    if (isInCluster && rules.preferred_sizes.length > 0) {
-      // Use larger sizes for clustered terrain
-      const largerSizes = rules.preferred_sizes.filter((size: number) => size >= 64);
-      if (largerSizes.length > 0) {
-        const index = Math.floor(randomFactor * largerSizes.length);
-        selectedSize = largerSizes[index];
-      }
+    // For grid-scale terrain (mountains, deserts, oceans), use MASSIVE chunks
+    if (rules.grid_scale) {
+      // These terrain types should fill the entire visible area as ONE chunk
+      const index = Math.floor(randomFactor * rules.preferred_sizes.length);
+      return rules.preferred_sizes[index] || 512;
     } else {
-      // Use smaller or medium sizes for isolated chunks
-      const smallerSizes = rules.preferred_sizes.filter((size: number) => size <= 128);
-      if (smallerSizes.length > 0) {
-        const index = Math.floor(randomFactor * smallerSizes.length);
-        selectedSize = smallerSizes[index];
-      }
+      // Non-grid-scale terrain uses smaller single chunks
+      const index = Math.floor(randomFactor * rules.preferred_sizes.length);
+      return rules.preferred_sizes[index] || 256;
     }
-    
-    return selectedSize;
   }
 
   // Get scale factor for chunk size

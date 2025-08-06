@@ -214,29 +214,36 @@ generation_parameters:
   # Rules for dynamic chunk size selection
   chunk_sizing_rules:
     mountain:
-      preferred_sizes: [128, 256]    # Mountains need large scale
-      min_cluster_size: 3            # Mountains form in clusters
+      preferred_sizes: [512, 768]    # Mountains are MASSIVE single features
+      min_cluster_size: 1            # One chunk = one mountain
+      grid_scale: true               # Scale to fill entire visible grid
       
     desert: 
-      preferred_sizes: [128, 256]    # Deserts are vast
-      min_cluster_size: 2
+      preferred_sizes: [384, 512]    # Deserts are vast single expanses
+      min_cluster_size: 1
+      grid_scale: true
       
     ocean:
-      preferred_sizes: [256]         # Oceans are massive
-      min_cluster_size: 4
+      preferred_sizes: [768, 1024]   # Oceans are enormous
+      min_cluster_size: 1
+      grid_scale: true
       
     grassland:
-      preferred_sizes: [64, 128]     # Rolling plains
+      preferred_sizes: [256, 384]    # Rolling plains as single vista
       min_cluster_size: 1
+      grid_scale: false
       
     forest:
-      preferred_sizes: [64, 128]     # Forest patches vary
-      min_cluster_size: 2
+      preferred_sizes: [256, 384]    # Forests as single biomes
+      min_cluster_size: 1
+      grid_scale: false
       
     swamp:
-      preferred_sizes: [32, 64]      # Swamps are localized
+      preferred_sizes: [128, 192]    # Swamps are more localized
       min_cluster_size: 1
+      grid_scale: false
       
     tundra:
-      preferred_sizes: [128, 256]    # Tundra spans vast areas
-      min_cluster_size: 2
+      preferred_sizes: [384, 512]    # Tundra spans vast areas
+      min_cluster_size: 1
+      grid_scale: true

@@ -69,14 +69,14 @@ export class SimpleTerrain {
         throw new Error(`No terrain configuration found for biome: ${biome.type}`);
       }
 
-      // Determine optimal chunk size based on terrain type and neighboring chunks
+      // Determine optimal chunk size - for mountains/deserts, this creates ONE massive chunk
       const neighborTypes = this.analyzeNeighboringTerrainTypes(chunkX, chunkZ);
       const optimalSize = this.configManager.determineChunkSize(biome.type, chunkX, chunkZ, neighborTypes);
       const scaleFactor = this.configManager.getScaleFactor(optimalSize);
       const detailLevel = this.configManager.getDetailLevel(optimalSize);
       
-      // Use the optimal size, but respect requested size as minimum for compatibility
-      const size = Math.max(optimalSize, requestedSize);
+      // Use the optimal size - for large terrain features, this will be 512+ units
+      const size = optimalSize;
 
       const genParams = this.configManager.getGenerationParameters();
       const seedMultipliers = genParams.unique_seed_multipliers;

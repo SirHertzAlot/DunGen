@@ -21,16 +21,18 @@ export default function WorldViewer() {
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
 
-  // Load terrain chunks from procedural generation
+  // Load single massive terrain feature - ONE chunk = ONE feature
   const loadTerrainChunks = async (scene: any, THREE: any) => {
-    const chunkSize = 32;
-    const terrainScale = 2.0;
-    const heightScale = 1.2; // Optimized for proper displacement mapping
+    const baseChunkSize = 64;    // Base geometry size
+    const terrainScale = 4.0;    // Scale up for massive features
+    const heightScale = 2.0;     // Enhanced for dramatic terrain
     
-    // Load multiple terrain chunks in a 3x3 grid for simplicity
-    for (let x = -1; x <= 1; x++) {
-      for (let z = -1; z <= 1; z++) {
-        try {
+    // Load ONE massive chunk at origin that represents the entire terrain feature
+    const chunkCoords = [{ x: 0, z: 0 }]; // Single massive feature
+    
+    for (const coord of chunkCoords) {
+      const { x, z } = coord;
+      try {
           const response = await fetch(`/api/worldgen/chunk/${x}/${z}`);
           const data = await response.json();
           
@@ -40,9 +42,9 @@ export default function WorldViewer() {
             
             // Create terrain using a simple approach that works
             const geometry = new THREE.PlaneGeometry(
-              chunkSize * terrainScale, 
-              chunkSize * terrainScale, 
-              31, 31  // 32x32 segments
+              baseChunkSize * terrainScale, 
+              baseChunkSize * terrainScale, 
+              63, 63  // Higher resolution for massive features
             );
             
             // Apply actual heightmap data from the new world generation system
@@ -54,15 +56,15 @@ export default function WorldViewer() {
               const heightmapCols = heightmap2D[0].length;
               console.log(`Processing ${heightmapRows}x${heightmapCols} heightmap`);
               
-              // Apply heights to vertices (geometry is 32x32 segments = 1024 vertices)
+              // Apply heights to vertices (geometry is 64x64 segments = 4096 vertices)
               for (let i = 2; i < vertices.length; i += 3) {
                 const vertexIndex = (i - 2) / 3;
-                const row = Math.floor(vertexIndex / 32);
-                const col = vertexIndex % 32;
+                const row = Math.floor(vertexIndex / 64);
+                const col = vertexIndex % 64;
                 
                 // Scale to heightmap coordinates  
-                const heightRow = Math.floor((row / 31) * (heightmapRows - 1));
-                const heightCol = Math.floor((col / 31) * (heightmapCols - 1));
+                const heightRow = Math.floor((row / 63) * (heightmapRows - 1));
+                const heightCol = Math.floor((col / 63) * (heightmapCols - 1));
                 
                 if (heightRow < heightmapRows && heightCol < heightmapCols) {
                   const height = heightmap2D[heightRow][heightCol];
@@ -81,8 +83,8 @@ export default function WorldViewer() {
               for (let i = 2; i < vertices.length; i += 3) {
                 const x_pos = vertices[i - 2];
                 const z_pos = vertices[i - 1];
-                const worldX = x_pos + (x * chunkSize * terrainScale);
-                const worldZ = z_pos + (z * chunkSize * terrainScale);
+                const worldX = x_pos + (x * baseChunkSize * terrainScale);
+                const worldZ = z_pos + (z * baseChunkSize * terrainScale);
                 
                 // Multi-octave noise for realistic terrain
                 let height = 0;
@@ -119,9 +121,9 @@ export default function WorldViewer() {
             const terrainMesh = new THREE.Mesh(geometry, material);
             terrainMesh.rotation.x = -Math.PI / 2;
             terrainMesh.position.set(
-              x * chunkSize * terrainScale, 
+              0, // Single massive feature centered at origin
               0, 
-              z * chunkSize * terrainScale
+              0
             );
             terrainMesh.receiveShadow = true;
             terrainMesh.castShadow = true;
@@ -137,7 +139,6 @@ export default function WorldViewer() {
           console.error(`Error loading terrain chunk (${x}, ${z}):`, error);
         }
       }
-    }
     
     // Add grid helper for reference
     const gridHelper = new THREE.GridHelper(200, 40, 0x444444, 0x444444);
