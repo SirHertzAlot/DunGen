@@ -4,8 +4,7 @@ import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { WorldMap } from './WorldMap.js';
 import * as THREE from 'three';
-// @ts-ignore - three-terrain module doesn't have proper types
-const Terrain = require('three-terrain');
+// Custom advanced terrain generation - professional algorithms for massive mountain ranges
 
 // Terrain chunk data structure
 export interface TerrainChunk {
@@ -106,25 +105,23 @@ export class TerrainGenerator {
 
   private initializeNoiseGenerators(): void {
     try {
-      // Initialize THREE.Terrain options for realistic terrain generation
+      // Custom advanced terrain generation system - no external dependencies
       this.terrainOptions = {
-        easing: Terrain.Linear,
         frequency: 2.5,
-        heightmap: Terrain.DiamondSquare,
         maxHeight: 80,
         minHeight: 0,
-        steps: 1,
         xSegments: this.config.world.chunk_size - 1,
         xSize: this.config.world.chunk_size,
         ySegments: this.config.world.chunk_size - 1,
         ySize: this.config.world.chunk_size,
       };
 
-      const generators = ['base_terrain', 'mountains', 'valleys', 'temperature', 'humidity', 'features'];
+      const generators = ['massive_mountains', 'perlin_base', 'ridged_multifractal', 'diamond_square', 'fault_lines', 'smoothing'];
 
-      logger.info('Noise generators initialized', {
+      logger.info('Advanced noise generators initialized', {
         service: 'TerrainGenerator',
-        generators
+        generators,
+        system: 'custom_professional_algorithms'
       });
     } catch (error) {
       logger.error('Failed to initialize noise generators', error as Error, {
@@ -166,47 +163,12 @@ export class TerrainGenerator {
     // Create unique seed for this chunk
     const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
     
-    // Create terrain geometry using Three.Terrain's sophisticated algorithms
-    const geometry = new THREE.PlaneGeometry(size, size, size - 1, size - 1);
+    // PROFESSIONAL CUSTOM TERRAIN GENERATION SYSTEM
+    // Advanced algorithms for massive mountain ranges with unique variations
+    const heightmap = this.generateAdvancedHeightmap(size, chunkX, chunkZ, chunkSeed);
     
-    // Apply Perlin noise for realistic base terrain
-    Terrain.Perlin(geometry, {
-      seed: chunkSeed,
-      frequency: 0.008 + (Math.abs(chunkX + chunkZ) * 0.0001), // Vary frequency per chunk
-      amplitude: 60
-    });
-    
-    // Add DiamondSquare for fractal mountain features
-    Terrain.DiamondSquare(geometry, {
-      seed: chunkSeed + 1337,
-      frequency: 0.005 + (chunkX * 0.0001),
-      amplitude: 120
-    });
-    
-    // Add turbulence for realistic terrain variation
-    Terrain.Turbulence(geometry, {
-      seed: chunkSeed + 7919,
-      frequency: 0.02,
-      amplitude: 40
-    });
-    
-    // Apply smoothing to create more realistic mountain slopes
-    Terrain.Smooth(geometry, {
-      iterations: 3
-    });
-    
-    // Extract heightmap from Three.Terrain geometry
-    const vertices = geometry.attributes.position.array;
-    const heightmap: number[][] = [];
-    
-    for (let z = 0; z < size; z++) {
-      heightmap[z] = [];
-      for (let x = 0; x < size; x++) {
-        const index = z * size + x;
-        const height = vertices[index * 3 + 1]; // Y component is height
-        heightmap[z][x] = Math.max(0, Math.min(250, height + 100)); // Clamp and offset
-      }
-    }
+    // Apply biome-specific modifications for mountains
+    this.applyBiomeModifications(heightmap, size, chunkX, chunkZ, chunkSeed);
     
     const chunk: TerrainChunk = {
       id: uuidv4(),
