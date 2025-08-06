@@ -121,66 +121,56 @@ export class WorldMap {
         const worldX = chunkX * chunkSize + x;
         const worldZ = chunkZ * chunkSize + z;
         
-        // Enhanced multi-octave noise with progressive smoothing for realistic large-scale terrain
+        // Completely redesigned noise generation for GRADUAL, AI-TRAVERSABLE terrain
         let height = 0;
         let amplitude = 1.0;
-        let frequency = biome.noiseScale * 0.3; // Start with larger-scale features
-        const persistence = 0.65; // How much each octave contributes (higher = more detail retention)
-        const lacunarity = 2.1; // How much frequency increases each octave
+        let frequency = biome.noiseScale * 0.05; // Much lower frequency for smoother, larger features
+        const persistence = 0.45; // Lower persistence = less harsh detail accumulation
+        const lacunarity = 1.8; // Lower lacunarity = gentler frequency scaling
         const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
         
-        // Octave 1: Continental/regional structure (massive mountains, deep valleys)
-        height += this.elevationNoise(worldX * frequency, worldZ * frequency) * amplitude * 100;
+        // Octave 1: Large continental features - VERY gradual base terrain
+        const baseNoise = this.elevationNoise(worldX * frequency, worldZ * frequency);
+        height += Math.pow((baseNoise + 1) / 2, 2) * amplitude * 25; // Squared for gentler transitions
         amplitude *= persistence;
         frequency *= lacunarity;
         
-        // Octave 2: Large terrain features (mountain ranges, large valleys)
-        height += this.mountainRangeNoise(worldX * frequency, worldZ * frequency) * amplitude * 60;
+        // Octave 2: Regional features - smooth rolling hills
+        const regionalNoise = this.mountainRangeNoise(worldX * frequency, worldZ * frequency);
+        height += Math.pow((regionalNoise + 1) / 2, 1.5) * amplitude * 15; // More gentle power
         amplitude *= persistence;
         frequency *= lacunarity;
         
-        // Octave 3: Local mountain systems and hills
-        height += this.elevationNoise(worldX * frequency + chunkSeed, worldZ * frequency + chunkSeed) * amplitude * 35;
+        // Octave 3: Local variation - very subtle
+        const localNoise = this.elevationNoise(worldX * frequency + chunkSeed, worldZ * frequency + chunkSeed);
+        height += ((localNoise + 1) / 2) * amplitude * 8; // Linear for smoothness
         amplitude *= persistence;
         frequency *= lacunarity;
         
-        // Octave 4: Ridges and local terrain variation
-        height += this.detailNoise(worldX * frequency, worldZ * frequency) * amplitude * 20;
+        // Octave 4: Surface detail - minimal variation
+        const detailNoise = this.detailNoise(worldX * frequency, worldZ * frequency);
+        height += ((detailNoise + 1) / 2) * amplitude * 4;
         amplitude *= persistence;
         frequency *= lacunarity;
         
-        // Octave 5: Surface variation and local features
-        height += this.detailNoise(worldX * frequency * 1.3, worldZ * frequency * 0.8) * amplitude * 12;
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        // Octave 5: Fine detail - very subtle surface variation
+        const fineNoise = this.detailNoise(worldX * frequency * 1.1, worldZ * frequency * 0.9);
+        height += ((fineNoise + 1) / 2) * amplitude * 2;
         
-        // Octave 6: Fine surface detail
-        height += this.temperatureNoise(worldX * frequency, worldZ * frequency) * amplitude * 6;
-        amplitude *= persistence;
-        frequency *= lacunarity;
+        // Apply VERY GRADUAL biome-specific elevation with smooth transitions
+        const continentalShape = this.elevationNoise(worldX * 0.001, worldZ * 0.001); // Larger scale
+        const mountainRidge = this.mountainRangeNoise(worldX * 0.002, worldZ * 0.002);
         
-        // Octave 7: Micro surface roughness
-        height += this.moistureNoise(worldX * frequency, worldZ * frequency) * amplitude * 3;
-        
-        // Apply terrain-type specific scaling with better mountain distribution
-        const continentalShape = this.elevationNoise(worldX * 0.0001, worldZ * 0.0001); // Larger scale for sparser mountains
-        const mountainRidge = this.mountainRangeNoise(worldX * 0.0003, worldZ * 0.0003);
-        
-        // Create sparse mountain ranges with gradual, traversable slopes for AI pathfinding
-        const mountainThreshold = 0.7; // Higher threshold = fewer mountains with better spacing
-        if (biome.type === 'mountain' || (continentalShape > mountainThreshold && mountainRidge > 0.6)) {
-          const mountainFactor = Math.pow(Math.max(0, continentalShape - mountainThreshold), 1.5); // Gentler power for gradual slopes
-          const ridgeFactor = Math.pow(Math.max(0, mountainRidge - 0.6), 1.2);
-          
-          // Create moderate elevation changes with gradual, passable slopes
-          const gentleSlope = 0.5 + (mountainFactor * 0.3); // Much gentler slope multiplier
-          height += mountainFactor * ridgeFactor * 60 * gentleSlope; // Moderate mountains with gradual slopes
+        // Mountain regions - MUCH more gradual with AI-friendly slopes
+        if (biome.type === 'mountain') {
+          const mountainInfluence = Math.pow((continentalShape + 1) / 2, 3) * Math.pow((mountainRidge + 1) / 2, 2);
+          height += mountainInfluence * 35; // Very moderate mountain heights
         }
         
-        // Create gentle valleys between mountain ranges  
-        if (continentalShape < -0.3 && mountainRidge < 0.2) {
-          const valleyFactor = Math.pow(Math.abs(continentalShape + 0.3), 1.8);
-          height -= valleyFactor * 30; // Gentle valleys that are still traversable
+        // Valley regions - gentle depressions, not sharp drops
+        const valleyInfluence = Math.pow(Math.max(0, (-continentalShape + 1) / 2), 2);
+        if (valleyInfluence > 0.3) {
+          height -= valleyInfluence * 8; // Subtle valley depressions
         }
         
         // Add slope steepness modifier based on elevation change
@@ -193,8 +183,11 @@ export class WorldMap {
         // Apply high-quality detail enhancement for realistic heightmaps
         height = this.enhanceHeightmapQuality(worldX, worldZ, height, biome);
         
-        // Apply biome-specific base height and scaling
-        height = height + biome.elevation * 15 + (biome.heightScale * 2);
+        // Apply gentle biome-specific scaling - NO harsh elevation jumps
+        height = height + biome.elevation * 8 + (biome.heightScale * 0.8);
+        
+        // Critical: Ensure height values stay in gradual, traversable range (0-80 units max)
+        height = Math.max(0, Math.min(80, height));
 
         // Edge blending for seamless transitions
         const edgeBlendFactor = 0.1; // 10% of chunk size for blending
