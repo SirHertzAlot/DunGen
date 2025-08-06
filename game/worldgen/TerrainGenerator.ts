@@ -163,35 +163,27 @@ export class TerrainGenerator {
     // Create unique seed for this chunk
     const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
     
-    // USING THREE.TERRAIN.JS LIBRARY - PROFESSIONAL TERRAIN GENERATION
-    // Create terrain geometry using the three.terrain.js library
-    const geometry = new THREE.PlaneGeometry(size, size, size - 1, size - 1);
-    
-    // Apply THREE.TERRAIN Mountain algorithm for massive mountain ranges
-    Terrain.Mountain(geometry, {
-      seed: chunkSeed,
-      frequency: 0.002 + (Math.abs(chunkX + chunkZ) * 0.0001), // Vary per chunk
-      amplitude: 150 + (Math.abs(chunkX) * 10) // Massive mountains 150-250 height
+    // USING THREE.TERRAIN.JS LIBRARY - COMPREHENSIVE TERRAIN GENERATION
+    // Create terrain using the proper THREE.Terrain() function with advanced algorithms
+    const terrainScene = Terrain({
+      easing: Terrain.Linear,
+      frequency: 2.5 + (chunkX * 0.1) + (chunkZ * 0.1), // Vary frequency per chunk
+      heightmap: this.selectHeightmapAlgorithm(chunkX, chunkZ, chunkSeed),
+      maxHeight: 200 + (Math.abs(chunkX + chunkZ) * 15), // Massive mountains up to 350 height
+      minHeight: -20,
+      steps: 1,
+      xSegments: size - 1,
+      xSize: size,
+      ySegments: size - 1,
+      ySize: size,
+      seed: chunkSeed
     });
+
+    // Get the geometry from the generated terrain scene
+    const geometry = terrainScene.children[0].geometry;
     
-    // Add DiamondSquare for additional fractal detail
-    Terrain.DiamondSquare(geometry, {
-      seed: chunkSeed + 1337,
-      frequency: 0.008,
-      amplitude: 80
-    });
-    
-    // Add Perlin noise for natural variation
-    Terrain.Perlin(geometry, {
-      seed: chunkSeed + 7777,
-      frequency: 0.015,
-      amplitude: 40
-    });
-    
-    // Apply smoothing for realistic slopes
-    Terrain.Smooth(geometry, {
-      iterations: 2
-    });
+    // Apply additional terrain modifications for sophisticated landscapes
+    this.applyAdvancedTerrainModifications(geometry, chunkX, chunkZ, chunkSeed);
     
     // Extract heightmap from the geometry
     const vertices = geometry.attributes.position.array;
@@ -644,5 +636,80 @@ export class TerrainGenerator {
         chunk.heightmap[x][z] = Math.max(0, Math.min(500, height + 200)); // Massive heights up to 500 units
       }
     }
+  }
+  
+  // ADVANCED TERRAIN GENERATION METHODS BASED ON THREE.Terrain DOCUMENTATION
+  
+  private selectHeightmapAlgorithm(chunkX: number, chunkZ: number, seed: number): any {
+    // Use different terrain algorithms based on chunk position for varied landscapes
+    const algorithmChoice = (Math.abs(chunkX + chunkZ) + seed) % 8;
+    
+    switch (algorithmChoice) {
+      case 0:
+      case 1:
+        // Diamond-Square algorithm for fractal mountain ranges
+        return Terrain.DiamondSquare;
+      case 2:
+        // Perlin noise for rolling hills and natural terrain
+        return Terrain.Perlin;
+      case 3:
+        // Simplex noise for smoother organic terrain
+        return Terrain.Simplex;
+      case 4:
+        // Value noise for different character than Perlin
+        return Terrain.Value;
+      case 5:
+        // Fault lines for dramatic cliffs and ridges
+        return Terrain.Fault;
+      case 6:
+        // Cosine waves for regular mountain ridges
+        return Terrain.Cosine;
+      case 7:
+        // Weierstrass function for fractal mountains
+        return Terrain.Weierstrass;
+      default:
+        return Terrain.DiamondSquare;
+    }
+  }
+  
+  private applyAdvancedTerrainModifications(geometry: THREE.BufferGeometry, chunkX: number, chunkZ: number, seed: number): void {
+    // Apply multiple terrain generation techniques for realistic landscapes
+    const secondarySeed = seed + 12345;
+    const tertiarySeed = seed + 54321;
+    
+    // Add secondary noise layer for detail
+    Terrain.Perlin(geometry, {
+      seed: secondarySeed,
+      frequency: 0.02,
+      amplitude: 25
+    });
+    
+    // Add tertiary noise for fine detail
+    Terrain.Simplex(geometry, {
+      seed: tertiarySeed,
+      frequency: 0.05,
+      amplitude: 10
+    });
+    
+    // Apply erosion simulation for realistic valleys
+    Terrain.Erosion(geometry, {
+      iterations: 2,
+      amount: 15
+    });
+    
+    // Add fault lines for geological realism
+    if (Math.abs(chunkX + chunkZ) % 3 === 0) {
+      Terrain.Fault(geometry, {
+        seed: seed + 99999,
+        iterations: 3,
+        minHeight: -30,
+        maxHeight: 50
+      });
+    }
+    
+    // Apply smoothing to create realistic slopes
+    Terrain.Smooth(geometry, {
+      iterations: 1
+    });
   }
 }
