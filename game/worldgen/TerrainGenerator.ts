@@ -158,50 +158,72 @@ export class TerrainGenerator {
     return Math.abs(hash);
   }
 
+  // Sophisticated noise function using fractal Brownian motion for realistic terrain
+  private fractalNoise(x: number, z: number, chunkX: number, chunkZ: number): number {
+    let amplitude = 1.0;
+    let frequency = 0.002; // Base frequency for large-scale features
+    let value = 0.0;
+    let maxValue = 0.0;
+    
+    // Create unique seed per chunk to avoid repetition
+    const chunkSeed = (chunkX * 73856093 + chunkZ * 19349663) % 2147483647;
+    
+    // 8 octaves of noise for complex, realistic terrain
+    for (let i = 0; i < 8; i++) {
+      // Unique phase offsets per chunk and octave
+      const phaseX = Math.sin(chunkSeed * 0.001 + i * 1.3) * 1000;
+      const phaseZ = Math.cos(chunkSeed * 0.001 + i * 1.7) * 1000;
+      
+      // Layer multiple sine waves with different characteristics
+      const noise1 = Math.sin((x + phaseX) * frequency) * Math.cos((z + phaseZ) * frequency);
+      const noise2 = Math.cos((x + phaseZ) * frequency * 1.1) * Math.sin((z + phaseX) * frequency * 0.9);
+      const noise3 = Math.sin((x * 1.3 + z * 0.7 + phaseX) * frequency) * 0.5;
+      
+      // Combine noises with turbulence
+      const combinedNoise = (noise1 + noise2 * 0.7 + noise3) / 2.2;
+      
+      value += combinedNoise * amplitude;
+      maxValue += amplitude;
+      
+      amplitude *= 0.5; // Decrease amplitude each octave
+      frequency *= 2.0; // Increase frequency each octave
+    }
+    
+    return value / maxValue; // Normalize to [-1, 1]
+  }
+
   private async generateChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
     const startTime = Date.now();
     const size = this.config.world.chunk_size;
     
-    // Generate completely unique terrain for each chunk using position-based patterns
+    // Generate sophisticated terrain using fractal noise
     const heightmap: number[][] = [];
     
-    // Create unique base patterns for each chunk using chunk coordinates
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
-        // Use world coordinates for unique patterns
         const worldX = chunkX * size + x;
         const worldZ = chunkZ * size + z;
         
-        // Create multiple noise layers with different characteristics based on chunk position
-        let height = 0;
+        // Generate base terrain using fractal noise
+        const baseNoise = this.fractalNoise(worldX, worldZ, chunkX, chunkZ);
+        let height = baseNoise * 60; // Base terrain height
         
-        // Base terrain layer - varies by chunk position
-        const baseFreq = 0.01 + (Math.abs(chunkX) * 0.0001) + (Math.abs(chunkZ) * 0.0001);
-        height += Math.sin(worldX * baseFreq) * Math.cos(worldZ * baseFreq) * 20;
-        
-        // Mountain layer - only in certain chunk regions
-        if ((chunkX + chunkZ) % 3 === 0) {
-          const mountainFreq = 0.005 + (chunkX * 0.0002);
-          height += Math.sin(worldX * mountainFreq) * Math.sin(worldZ * mountainFreq) * 40;
+        // Add mountain features for dramatic elevation
+        const mountainNoise = this.fractalNoise(worldX * 0.3, worldZ * 0.3, chunkX, chunkZ);
+        if (mountainNoise > 0.2) { // Only create mountains above threshold
+          const mountainHeight = Math.pow((mountainNoise - 0.2) / 0.8, 2) * 180; // Steep mountain curves
+          height += mountainHeight;
         }
         
-        // Hill pattern - varies by chunk coordinates
-        const hillFreq = 0.02 + (Math.abs(chunkX * chunkZ) * 0.00001);
-        height += Math.sin(worldX * hillFreq + chunkX) * Math.cos(worldZ * hillFreq + chunkZ) * 15;
-        
-        // Ridge pattern - unique per chunk
-        if (chunkX % 2 === 0) {
-          height += Math.sin(worldX * 0.008 + chunkZ) * 25;
-        }
-        if (chunkZ % 2 === 0) {
-          height += Math.cos(worldZ * 0.008 + chunkX) * 25;
+        // Add ridge systems for varied terrain
+        const ridgeNoise = this.fractalNoise(worldX * 2.0, worldZ * 0.5, chunkX + 7, chunkZ + 11);
+        if (Math.abs(ridgeNoise) < 0.1) { // Sharp ridges
+          height += (0.1 - Math.abs(ridgeNoise)) * 10 * 40; // Sharp ridge multiplier
         }
         
-        // Add chunk-specific offset to ensure no two chunks are identical
-        height += (chunkX * 13 + chunkZ * 17) % 20;
-        
-        heightmap[z][x] = Math.max(0, Math.min(80, height + 40)); // Clamp to 0-80 range, offset by 40
+        // Ensure positive heights with realistic base elevation
+        heightmap[z][x] = Math.max(5, Math.min(250, height + 80));
       }
     }
     
@@ -583,40 +605,45 @@ export class TerrainGenerator {
   }
 
   private async applyMassiveMountainTerrain(chunk: TerrainChunk): Promise<void> {
-    // Generate unique massive mountain terrain using position-based patterns
+    // Generate massive mountain terrain using sophisticated fractal noise
     for (let z = 0; z < chunk.size; z++) {
       for (let x = 0; x < chunk.size; x++) {
         const worldX = chunk.x * chunk.size + x;
         const worldZ = chunk.z * chunk.size + z;
         
-        let height = 0;
+        // Base mountain elevation using fractal noise
+        const baseMountainNoise = this.fractalNoise(worldX * 0.1, worldZ * 0.1, chunk.x, chunk.z);
+        let height = baseMountainNoise * 150 + 100; // Base mountain elevation
         
-        // Massive mountain base - unique per chunk
-        const mountainFreq1 = 0.002 + (chunk.x * 0.0001) + (chunk.z * 0.0001);
-        height += Math.sin(worldX * mountainFreq1) * Math.cos(worldZ * mountainFreq1) * 120;
-        
-        // Alpine peaks - varies by chunk coordinates
-        const peakFreq = 0.005 + (Math.abs(chunk.x * chunk.z) * 0.00001);
-        height += Math.sin(worldX * peakFreq + chunk.x) * Math.sin(worldZ * peakFreq + chunk.z) * 80;
-        
-        // Ridge systems - unique patterns per chunk
-        if (chunk.x % 3 === 0) {
-          height += Math.sin(worldX * 0.003 + chunk.z * 7) * 60;
-        }
-        if (chunk.z % 3 === 0) {
-          height += Math.cos(worldZ * 0.003 + chunk.x * 11) * 60;
+        // Major peaks - dramatic elevation spikes
+        const peakNoise = this.fractalNoise(worldX * 0.05, worldZ * 0.05, chunk.x + 13, chunk.z + 17);
+        if (peakNoise > 0.4) {
+          const peakHeight = Math.pow((peakNoise - 0.4) / 0.6, 3) * 300; // Exponential peak curves
+          height += peakHeight;
         }
         
-        // Volcanic peaks in specific chunk positions
-        if ((chunk.x + chunk.z) % 5 === 0) {
-          const volcanoFreq = 0.001 + (chunk.x * 0.0002);
-          height += Math.pow(Math.sin(worldX * volcanoFreq) * Math.cos(worldZ * volcanoFreq), 2) * 100;
+        // Ridge systems for dramatic mountain ridges
+        const ridgeNoise1 = this.fractalNoise(worldX * 0.8, worldZ * 0.2, chunk.x + 7, chunk.z);
+        const ridgeNoise2 = this.fractalNoise(worldX * 0.2, worldZ * 0.8, chunk.x, chunk.z + 11);
+        
+        // Sharp ridges where noise approaches zero
+        if (Math.abs(ridgeNoise1) < 0.05) {
+          height += (0.05 - Math.abs(ridgeNoise1)) * 20 * 100; // Sharp vertical ridges
+        }
+        if (Math.abs(ridgeNoise2) < 0.05) {
+          height += (0.05 - Math.abs(ridgeNoise2)) * 20 * 100; // Perpendicular ridges
         }
         
-        // Add chunk-specific massive offset
-        height += (chunk.x * 19 + chunk.z * 23) % 40;
+        // Volcanic features for unique mountain types
+        if ((chunk.x + chunk.z) % 7 === 0) {
+          const volcanoNoise = this.fractalNoise(worldX * 0.03, worldZ * 0.03, chunk.x + 31, chunk.z + 37);
+          if (volcanoNoise > 0.6) {
+            const volcanoHeight = Math.pow((volcanoNoise - 0.6) / 0.4, 2) * 200;
+            height += volcanoHeight;
+          }
+        }
         
-        chunk.heightmap[x][z] = Math.max(0, Math.min(250, height + 100)); // Massive mountain heights
+        chunk.heightmap[x][z] = Math.max(0, Math.min(400, height)); // Massive mountain heights up to 400 units
       }
     }
   }
