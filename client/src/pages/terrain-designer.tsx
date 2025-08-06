@@ -35,15 +35,15 @@ export default function TerrainDesigner() {
   const [config, setConfig] = useState<TerrainConfig>({
     chunkX: 0,
     chunkZ: 0,
-    algorithm: 'DiamondSquare',
-    size: 512,
-    frequency: 0.01,
-    amplitude: 200,
+    algorithm: 'mountain',
+    size: 256,
+    frequency: 0.005,
+    amplitude: 400,
     octaves: 6,
     persistence: 0.5,
     lacunarity: 2.0,
     seed: 12345,
-    minHeight: -50,
+    minHeight: 0,
     maxHeight: 500,
     erosionIterations: 3,
     smoothingPasses: 2,
@@ -82,59 +82,48 @@ export default function TerrainDesigner() {
 
   const presets = {
     'Massive Mountains': {
-      algorithm: 'Mountain',
-      size: 512,
-      frequency: 0.008,
+      algorithm: 'mountain',
+      size: 256,
+      frequency: 0.005,
       amplitude: 400,
-      octaves: 8,
+      octaves: 6,
       minHeight: 0,
-      maxHeight: 500,
+      maxHeight: 800,
       erosionIterations: 5,
       smoothingPasses: 3
     },
-    'Sharp Ridges': {
-      algorithm: 'Fault',
-      size: 512,
-      frequency: 0.005,
+    'Sharp Peaks': {
+      algorithm: 'mountain',
+      size: 128,
+      frequency: 0.008,
       amplitude: 300,
-      octaves: 6,
-      minHeight: -20,
-      maxHeight: 350,
+      octaves: 8,
+      minHeight: 50,
+      maxHeight: 600,
       erosionIterations: 2,
       smoothingPasses: 1
     },
     'Rolling Hills': {
-      algorithm: 'Perlin',
-      size: 384,
+      algorithm: 'perlin',
+      size: 256,
       frequency: 0.02,
       amplitude: 80,
       octaves: 4,
       minHeight: 0,
-      maxHeight: 150,
+      maxHeight: 200,
       erosionIterations: 1,
       smoothingPasses: 3
     },
-    'Volcanic Terrain': {
-      algorithm: 'Volcanoes',
-      size: 512,
-      frequency: 0.003,
-      amplitude: 450,
-      octaves: 7,
-      minHeight: -30,
-      maxHeight: 600,
-      erosionIterations: 4,
+    'Gentle Terrain': {
+      algorithm: 'perlin',
+      size: 128,
+      frequency: 0.03,
+      amplitude: 50,
+      octaves: 3,
+      minHeight: 0,
+      maxHeight: 100,
+      erosionIterations: 0,
       smoothingPasses: 2
-    },
-    'Fractal Cliffs': {
-      algorithm: 'DiamondSquare',
-      size: 512,
-      frequency: 0.006,
-      amplitude: 350,
-      octaves: 8,
-      minHeight: -50,
-      maxHeight: 400,
-      erosionIterations: 3,
-      smoothingPasses: 1
     }
   };
 
@@ -219,15 +208,8 @@ export default function TerrainDesigner() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="DiamondSquare">Diamond Square (Fractal)</SelectItem>
-                        <SelectItem value="Mountain">Mountain Ranges</SelectItem>
-                        <SelectItem value="Perlin">Perlin Noise</SelectItem>
-                        <SelectItem value="Simplex">Simplex Noise</SelectItem>
-                        <SelectItem value="Fault">Fault Lines (Cliffs)</SelectItem>
-                        <SelectItem value="Volcanoes">Volcanic Terrain</SelectItem>
-                        <SelectItem value="Cosine">Cosine Waves</SelectItem>
-                        <SelectItem value="Weierstrass">Weierstrass Functions</SelectItem>
-                        <SelectItem value="Value">Value Noise</SelectItem>
+                        <SelectItem value="mountain">Mountain Ranges</SelectItem>
+                        <SelectItem value="perlin">Perlin Noise</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -244,8 +226,8 @@ export default function TerrainDesigner() {
                     <Slider
                       value={[config.size]}
                       onValueChange={([value]) => updateConfig('size', value)}
-                      min={128}
-                      max={1024}
+                      min={64}
+                      max={256}
                       step={64}
                       className="mt-2"
                     />
