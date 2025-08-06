@@ -122,6 +122,28 @@ export class PlayerCharacterEntity extends Entity {
     public characterName?: string
   ) {
     super('PlayerCharacter', id);
+    this.initializeDefaultComponents();
+  }
+
+  private async initializeDefaultComponents(): Promise<void> {
+    // Initialize with default position
+    const defaultPosition = { x: 0, y: 0, z: 0 };
+    
+    const {
+      TransformComponent,
+      StatsComponent,
+      HealthComponent,
+      MovementComponent,
+      CombatComponent,
+      EquipmentComponent
+    } = await import('../components/CoreComponents');
+
+    this.addComponent(new TransformComponent(this.id, defaultPosition));
+    this.addComponent(new StatsComponent(this.id));
+    this.addComponent(new HealthComponent(this.id));
+    this.addComponent(new MovementComponent(this.id));
+    this.addComponent(new CombatComponent(this.id));
+    this.addComponent(new EquipmentComponent(this.id));
   }
 
   serialize(): any {
@@ -147,6 +169,27 @@ export class NPCEntity extends Entity {
     public faction?: string
   ) {
     super('NPC', id);
+    this.initializeNPCComponents();
+  }
+
+  private async initializeNPCComponents(): Promise<void> {
+    const defaultPosition = { x: 0, y: 0, z: 0 };
+    
+    const {
+      TransformComponent,
+      StatsComponent,
+      HealthComponent,
+      MovementComponent,
+      CombatComponent,
+      AIComponent
+    } = await import('../components/CoreComponents');
+
+    this.addComponent(new TransformComponent(this.id, defaultPosition));
+    this.addComponent(new StatsComponent(this.id));
+    this.addComponent(new HealthComponent(this.id, 100, 100, 0, 12 + this.challengeRating));
+    this.addComponent(new MovementComponent(this.id));
+    this.addComponent(new CombatComponent(this.id));
+    this.addComponent(new AIComponent(this.id));
   }
 
   serialize(): any {
@@ -262,69 +305,54 @@ export class EnvironmentalEntity extends Entity {
 
 // Entity factory for creating different types
 export class EntityFactory {
-  static createPlayerCharacter(
+  static async createPlayerCharacter(
     playerId: string,
     characterName: string,
     position: { x: number; y: number; z: number }
-  ): PlayerCharacterEntity {
+  ): Promise<PlayerCharacterEntity> {
     const entity = new PlayerCharacterEntity(undefined, playerId, characterName);
     
-    // Add default components
-    const {
-      TransformComponent,
-      StatsComponent,
-      HealthComponent,
-      MovementComponent,
-      CombatComponent,
-      EquipmentComponent
-    } = require('../components/CoreComponents');
-
-    entity.addComponent(new TransformComponent(entity.id, position));
-    entity.addComponent(new StatsComponent(entity.id));
-    entity.addComponent(new HealthComponent(entity.id));
-    entity.addComponent(new MovementComponent(entity.id));
-    entity.addComponent(new CombatComponent(entity.id));
-    entity.addComponent(new EquipmentComponent(entity.id));
+    // Wait for async component initialization
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    // Update position after initialization
+    const transform = entity.getComponent('Transform') as any;
+    if (transform) {
+      transform.setPosition(position.x, position.y, position.z);
+    }
 
     return entity;
   }
 
-  static createNPC(
+  static async createNPC(
     npcType: string,
     challengeRating: number,
     position: { x: number; y: number; z: number }
-  ): NPCEntity {
+  ): Promise<NPCEntity> {
     const entity = new NPCEntity(undefined, npcType, challengeRating);
     
-    const {
-      TransformComponent,
-      StatsComponent,
-      HealthComponent,
-      MovementComponent,
-      CombatComponent,
-      AIComponent
-    } = require('../components/CoreComponents');
-
-    entity.addComponent(new TransformComponent(entity.id, position));
-    entity.addComponent(new StatsComponent(entity.id));
-    entity.addComponent(new HealthComponent(entity.id, 100, 100, 0, 12 + challengeRating));
-    entity.addComponent(new MovementComponent(entity.id));
-    entity.addComponent(new CombatComponent(entity.id));
-    entity.addComponent(new AIComponent(entity.id));
+    // Wait for async component initialization
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    // Update position after initialization
+    const transform = entity.getComponent('Transform') as any;
+    if (transform) {
+      transform.setPosition(position.x, position.y, position.z);
+    }
 
     return entity;
   }
 
-  static createProjectile(
+  static async createProjectile(
     shooterId: string,
     startPos: { x: number; y: number; z: number },
     targetPos: { x: number; y: number; z: number },
     damage: number,
     damageType: string = 'piercing'
-  ): ProjectileEntity {
+  ): Promise<ProjectileEntity> {
     const entity = new ProjectileEntity(undefined, shooterId, undefined, damage, damageType);
     
-    const { TransformComponent, MovementComponent } = require('../components/CoreComponents');
+    const { TransformComponent, MovementComponent } = await import('../components/CoreComponents');
 
     entity.addComponent(new TransformComponent(entity.id, startPos));
     const movement = new MovementComponent(entity.id, 60); // Fast projectile
@@ -334,15 +362,15 @@ export class EntityFactory {
     return entity;
   }
 
-  static createSpellEffect(
+  static async createSpellEffect(
     casterId: string,
     spellId: string,
     position: { x: number; y: number; z: number },
     duration: number
-  ): SpellEffectEntity {
+  ): Promise<SpellEffectEntity> {
     const entity = new SpellEffectEntity(undefined, casterId, spellId, duration, duration);
     
-    const { TransformComponent } = require('../components/CoreComponents');
+    const { TransformComponent } = await import('../components/CoreComponents');
     entity.addComponent(new TransformComponent(entity.id, position));
 
     return entity;

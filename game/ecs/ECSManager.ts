@@ -282,7 +282,7 @@ export class ECSManager {
     characterClass: string;
     race: string;
   }): Promise<string> {
-    const entity = EntityFactory.createPlayerCharacter(
+    const entity = await EntityFactory.createPlayerCharacter(
       params.playerId,
       params.characterName,
       params.position
@@ -306,7 +306,7 @@ export class ECSManager {
     position: { x: number; y: number; z: number };
     faction?: string;
   }): Promise<string> {
-    const entity = EntityFactory.createNPC(
+    const entity = await EntityFactory.createNPC(
       params.npcType,
       params.challengeRating,
       params.position

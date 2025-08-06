@@ -1,4 +1,4 @@
-import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 import { ecsManager, UnityMessage } from '../ecs/ECSManager';
 import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
@@ -6,8 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 // Unity communication bridge for real-time ECS synchronization
 export class UnityBridge {
   private static instance: UnityBridge;
-  private wsServer: WebSocket.Server | null = null;
-  private unityClient: WebSocket | null = null;
+  private wsServer: WebSocketServer | null = null;
+  private unityClient: any | null = null;
   private messageBuffer: UnityMessage[] = [];
   private isConnected: boolean = false;
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -27,12 +27,12 @@ export class UnityBridge {
   // Initialize WebSocket server for Unity connection
   public async initialize(port: number = 8080): Promise<void> {
     try {
-      this.wsServer = new WebSocket.Server({ 
+      this.wsServer = new WebSocketServer({ 
         port,
         perMessageDeflate: false // Disable compression for low latency
       });
 
-      this.wsServer.on('connection', (ws: WebSocket) => {
+      this.wsServer.on('connection', (ws: any) => {
         this.handleUnityConnection(ws);
       });
 
@@ -57,7 +57,7 @@ export class UnityBridge {
     }
   }
 
-  private handleUnityConnection(ws: WebSocket): void {
+  private handleUnityConnection(ws: any): void {
     logger.info('Unity client connected', {
       service: 'UnityBridge',
       clientIP: ws.url || 'unknown'
