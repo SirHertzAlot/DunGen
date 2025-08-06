@@ -49,44 +49,67 @@ export class SimpleTerrain {
     return (value + 1) / 2; // Normalize to 0-1
   }
 
-  // Generate a terrain chunk with realistic variety
+  // Generate a terrain chunk with unique biome-specific terrain algorithms
   public generateChunk(chunkX: number, chunkZ: number, size: number = 64): TerrainChunk {
-    const heightmap: number[][] = [];
-    
-    // Create unique seed for this chunk
     const chunkSeed = this.hashChunk(chunkX, chunkZ);
+    const biome = this.getBiome(chunkX, chunkZ);
     
+    // Use chunk-specific seeds for unique generation
+    const seedA = (chunkSeed * 73) % 10000;
+    const seedB = (chunkSeed * 137) % 10000;
+    const seedC = (chunkSeed * 241) % 10000;
+    
+    const heightmap: number[][] = [];
+
+    // Generate heightmap using biome-specific terrain algorithms
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
         const worldX = chunkX * size + x;
         const worldZ = chunkZ * size + z;
         
-        // Multi-octave noise for realistic terrain
         let height = 0;
         
-        // Base terrain (large features)
-        height += this.noise(worldX, worldZ, 0.005, 20);
+        // Apply biome-specific terrain generation
+        switch (biome.type) {
+          case 'mountain':
+            height += this.generateMountainTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          case 'desert':
+            height += this.generateDesertTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          case 'forest':
+            height += this.generateForestTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          case 'swamp':
+            height += this.generateSwampTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          case 'tundra':
+            height += this.generateTundraTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          case 'marsh':
+            height += this.generateMarshTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+            
+          default: // grassland
+            height += this.generateGrasslandTerrain(worldX, worldZ, seedA, seedB, biome);
+            break;
+        }
         
-        // Medium features
-        height += this.noise(worldX + chunkSeed, worldZ + chunkSeed, 0.015, 10);
+        // Add chunk-specific variation to prevent repetition
+        height += this.getChunkVariation(worldX, worldZ, chunkX, chunkZ, seedC);
         
-        // Fine details
-        height += this.noise(worldX * 2 + chunkSeed, worldZ * 2 + chunkSeed, 0.08, 3);
-        
-        // Add some variety based on chunk position
-        const chunkVariation = Math.sin(chunkX * 0.3) * Math.cos(chunkZ * 0.3) * 15;
-        height += chunkVariation;
-        
-        // Clamp to reasonable range
-        height = Math.max(0, Math.min(80, height));
+        // Clamp to biome-appropriate range
+        height = Math.max(0, Math.min(biome.heightScale * 2, height));
         
         heightmap[z][x] = height;
       }
     }
-
-    // Determine biome based on chunk position
-    const biome: BiomeType = this.getBiome(chunkX, chunkZ);
 
     const chunk: TerrainChunk = {
       id: uuidv4(),
@@ -105,6 +128,7 @@ export class SimpleTerrain {
       chunkX,
       chunkZ,
       biome: biome.type,
+      heightScale: biome.heightScale,
       avgHeight: this.getAverageHeight(heightmap)
     });
 
@@ -116,38 +140,65 @@ export class SimpleTerrain {
   }
 
   private getBiome(chunkX: number, chunkZ: number): BiomeType {
-    const x = chunkX * 0.1;
-    const z = chunkZ * 0.1;
+    // Use chunk coordinates directly to create distinct biome regions
+    const chunkSeed = this.hashChunk(chunkX, chunkZ);
+    const biomeX = chunkX * 0.15;  // Increased scale for larger biome regions
+    const biomeZ = chunkZ * 0.15;
     
-    const elevation = this.noise(x, z, 0.01, 1);
-    const temperature = this.noise(x + 100, z + 100, 0.008, 1);
-    const moisture = this.noise(x + 200, z + 200, 0.012, 1);
-
-    // Determine biome type based on elevation, temperature, moisture
+    // Generate biome characteristics with more variation
+    const elevation = this.noise(biomeX, biomeZ, 0.008, 1);
+    const temperature = this.noise(biomeX + 1000, biomeZ + 1000, 0.012, 1);
+    const moisture = this.noise(biomeX + 2000, biomeZ + 2000, 0.009, 1);
+    
+    // Add chunk-specific randomness for unique terrain per chunk
+    const chunkVariation = (chunkSeed % 1000) / 1000.0;
+    
+    // Determine biome with clearer boundaries and more diversity
     let biomeType: BiomeType['type'] = 'grassland';
     let heightScale = 20;
     let noiseScale = 0.05;
 
-    if (elevation > 0.7) {
+    // Mountains - high elevation areas
+    if (elevation > 0.65 || (elevation > 0.4 && chunkVariation > 0.8)) {
       biomeType = 'mountain';
-      heightScale = 40;
-      noiseScale = 0.03;
-    } else if (elevation < 0.3) {
-      biomeType = 'marsh';
-      heightScale = 8;
-      noiseScale = 0.1;
-    } else if (temperature > 0.7 && moisture < 0.3) {
+      heightScale = Math.floor(35 + chunkVariation * 25); // 35-60 range
+      noiseScale = 0.02 + chunkVariation * 0.02; // 0.02-0.04
+    }
+    // Deserts - hot, dry areas  
+    else if (temperature > 0.6 && moisture < 0.4) {
       biomeType = 'desert';
-      heightScale = 15;
-      noiseScale = 0.06;
-    } else if (temperature < 0.3) {
+      heightScale = Math.floor(10 + chunkVariation * 15); // 10-25 range
+      noiseScale = 0.06 + chunkVariation * 0.04; // 0.06-0.10
+    }
+    // Swamps - low elevation, high moisture
+    else if (elevation < 0.35 && moisture > 0.5) {
+      biomeType = 'swamp';
+      heightScale = Math.floor(3 + chunkVariation * 8); // 3-11 range
+      noiseScale = 0.08 + chunkVariation * 0.05; // 0.08-0.13
+    }
+    // Tundra - cold areas
+    else if (temperature < 0.35) {
       biomeType = 'tundra';
-      heightScale = 12;
-      noiseScale = 0.04;
-    } else if (moisture > 0.6) {
+      heightScale = Math.floor(8 + chunkVariation * 12); // 8-20 range
+      noiseScale = 0.04 + chunkVariation * 0.03; // 0.04-0.07
+    }
+    // Forests - moderate temp, high moisture
+    else if (moisture > 0.55 && temperature > 0.35) {
       biomeType = 'forest';
-      heightScale = 25;
-      noiseScale = 0.07;
+      heightScale = Math.floor(20 + chunkVariation * 20); // 20-40 range
+      noiseScale = 0.05 + chunkVariation * 0.04; // 0.05-0.09
+    }
+    // Marshes - low areas with some moisture
+    else if (elevation < 0.45 && moisture > 0.35) {
+      biomeType = 'marsh';
+      heightScale = Math.floor(5 + chunkVariation * 10); // 5-15 range
+      noiseScale = 0.07 + chunkVariation * 0.06; // 0.07-0.13
+    }
+    // Default grassland with variation
+    else {
+      biomeType = 'grassland';
+      heightScale = Math.floor(15 + chunkVariation * 15); // 15-30 range
+      noiseScale = 0.04 + chunkVariation * 0.04; // 0.04-0.08
     }
 
     return {
