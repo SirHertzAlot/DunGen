@@ -1,321 +1,200 @@
-// Configuration-driven terrain generator with hot-loadable YAML configs
-import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
-import { TerrainConfigManager, TerrainTypeConfig } from './TerrainConfig';
-import { NoiseEngine } from './NoiseEngine';
+
+export interface TerrainParams {
+  chunkX: number;
+  chunkZ: number;
+  algorithm: string;
+  size: number;
+  frequency: number;
+  amplitude: number;
+  octaves: number;
+  seed: number;
+  minHeight: number;
+  maxHeight: number;
+  erosionIterations: number;
+  smoothingPasses: number;
+}
 
 export interface TerrainChunk {
   id: string;
-  x: number;
-  z: number;
+  chunkX: number;
+  chunkZ: number;
   size: number;
   heightmap: number[][];
-  biomes: BiomeType[];
-  features: TerrainFeature[];
-  generated: boolean;
-  lastAccessed: number;
-}
-
-export interface BiomeType {
-  type: 'grassland' | 'forest' | 'desert' | 'mountain' | 'swamp' | 'tundra' | 'ocean' | 'marsh' | 'bog' | 'cave';
-  elevation: number;
-  moisture: number;
-  temperature: number;
-  noiseScale: number;
-  heightScale: number;
-}
-
-export interface TerrainFeature {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  z: number;
-  properties: Record<string, any>;
+  algorithm: string;
+  minHeight: number;
+  maxHeight: number;
+  generatedAt: number;
 }
 
 export class SimpleTerrain {
   private static instance: SimpleTerrain;
-  private seed: number = 12345;
-  private configManager: TerrainConfigManager;
-  private noiseEngine: NoiseEngine;
 
-  public static getInstance(): SimpleTerrain {
+  static getInstance(): SimpleTerrain {
     if (!SimpleTerrain.instance) {
       SimpleTerrain.instance = new SimpleTerrain();
     }
     return SimpleTerrain.instance;
   }
 
-  constructor() {
-    this.configManager = TerrainConfigManager.getInstance();
-    this.noiseEngine = new NoiseEngine(this.seed);
+  private constructor() {}
+
+  /**
+   * Simple deterministic random number generator
+   */
+  private random(seed: number): number {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
   }
 
-  // Simple noise function using sine/cosine (fallback)
-  private noise(x: number, z: number, frequency: number = 0.01, amplitude: number = 1): number {
-    const value = Math.sin(x * frequency + this.seed) * Math.cos(z * frequency + this.seed * 1.3) * amplitude;
-    return (value + 1) / 2; // Normalize to 0-1
+  /**
+   * Simple noise function
+   */
+  private noise(x: number, y: number, seed: number): number {
+    const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 37.719) * 43758.5453;
+    return (n - Math.floor(n)) * 2 - 1; // Return value between -1 and 1
   }
 
-  // Generate terrain chunk using configuration-driven system with dynamic sizing
-  public generateChunk(chunkX: number, chunkZ: number, requestedSize: number = 64): TerrainChunk {
-    try {
-      const chunkSeed = this.hashChunk(chunkX, chunkZ);
-      const biome = this.getBiomeFromConfig(chunkX, chunkZ);
-      const terrainConfig = this.configManager.getTerrainType(biome.type);
-      
-      if (!terrainConfig) {
-        throw new Error(`No terrain configuration found for biome: ${biome.type}`);
+  /**
+   * Generate mountain terrain with dramatic elevation changes
+   */
+  generateMountainTerrain(params: TerrainParams): number[][] {
+    const { size, amplitude, seed, minHeight, maxHeight } = params;
+    
+    // Initialize heightmap properly
+    const heightmap: number[][] = [];
+    for (let y = 0; y < size; y++) {
+      heightmap[y] = [];
+      for (let x = 0; x < size; x++) {
+        heightmap[y][x] = 0;
       }
+    }
+    
+    // Generate base terrain using multiple noise layers
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let height = 0;
+        let frequency = 0.01;
+        let currentAmplitude = amplitude;
+        
+        // Layer multiple octaves of noise
+        for (let octave = 0; octave < 6; octave++) {
+          const sampleX = x * frequency;
+          const sampleY = y * frequency;
+          const noiseValue = this.noise(sampleX, sampleY, seed + octave * 1000);
+          height += noiseValue * currentAmplitude;
+          
+          frequency *= 2.0;
+          currentAmplitude *= 0.5;
+        }
+        
+        // Add ridged noise for mountain peaks
+        const ridgeX = x * 0.005;
+        const ridgeY = y * 0.005;
+        const ridge = Math.abs(this.noise(ridgeX, ridgeY, seed + 5000));
+        height += (1 - ridge) * amplitude * 0.6;
+        
+        // Base elevation
+        height += amplitude * 0.2;
+        
+        heightmap[y][x] = height;
+      }
+    }
 
-      // Determine optimal chunk size - for mountains/deserts, this creates ONE massive chunk
-      const neighborTypes = this.analyzeNeighboringTerrainTypes(chunkX, chunkZ);
-      const optimalSize = this.configManager.determineChunkSize(biome.type, chunkX, chunkZ, neighborTypes);
-      const scaleFactor = this.configManager.getScaleFactor(optimalSize);
-      const detailLevel = this.configManager.getDetailLevel(optimalSize);
-      
-      // Use the optimal size - for large terrain features, this will be 512+ units
-      const size = optimalSize;
+    // Find min/max without flattening (avoid stack overflow on large arrays)
+    let currentMin = Infinity;
+    let currentMax = -Infinity;
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (heightmap[y][x] < currentMin) currentMin = heightmap[y][x];
+        if (heightmap[y][x] > currentMax) currentMax = heightmap[y][x];
+      }
+    }
+    
+    const range = currentMax - currentMin;
 
-      const genParams = this.configManager.getGenerationParameters();
-      const seedMultipliers = genParams.unique_seed_multipliers;
-      
-      const heightmap: number[][] = [];
-
-      // Generate heightmap using configuration-driven noise algorithms with scale factor
-      for (let z = 0; z < size; z++) {
-        heightmap[z] = [];
+    if (range > 0) {
+      for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-          const worldX = chunkX * size + x;
-          const worldZ = chunkZ * size + z;
+          let normalized = (heightmap[y][x] - currentMin) / range;
           
-          let height = 0;
+          // Apply exponential curve for dramatic peaks
+          normalized = Math.pow(normalized, 1.5);
           
-          // Apply each noise algorithm from configuration with scale factor
-          for (let i = 0; i < terrainConfig.noise_algorithms.length; i++) {
-            const algorithm = terrainConfig.noise_algorithms[i];
-            const seedOffset = chunkSeed * seedMultipliers[i % seedMultipliers.length];
-            
-            // Apply scale factor to frequency for appropriate detail level
-            const scaledAlgorithm = {
-              ...algorithm,
-              frequency: algorithm.frequency * scaleFactor
-            };
-            
-            height += this.noiseEngine.applyNoiseAlgorithm(
-              scaledAlgorithm,
-              worldX,
-              worldZ,
-              seedOffset,
-              terrainConfig.height_range[1] - terrainConfig.height_range[0]
-            );
-          }
-          
-          // Add chunk-specific variation to prevent repetition
-          height += this.getChunkVariation(worldX, worldZ, chunkX, chunkZ, genParams);
-          
-          // Apply edge blending for seamless chunk transitions
-          height = this.applyEdgeBlending(height, x, z, size, chunkX, chunkZ, genParams);
-          
-          // Clamp to terrain configuration range
-          height = Math.max(
-            terrainConfig.height_range[0], 
-            Math.min(terrainConfig.height_range[1], height)
-          );
-          
-          heightmap[z][x] = height;
+          heightmap[y][x] = minHeight + (normalized * (maxHeight - minHeight));
         }
       }
-
-      const chunk: TerrainChunk = {
-        id: uuidv4(),
-        x: chunkX,
-        z: chunkZ,
-        size,
-        heightmap,
-        biomes: [biome],
-        features: [],
-        generated: true,
-        lastAccessed: Date.now()
-      };
-
-      logger.info(`Generated ${size}x${size} terrain chunk (${chunkX}, ${chunkZ}) - ${biome.type} biome (${detailLevel} detail, scale: ${scaleFactor}) with ${terrainConfig.noise_algorithms.length} algorithms`);
-
-      return chunk;
-    } catch (error: any) {
-      logger.error(`Failed to generate terrain chunk (${chunkX}, ${chunkZ}): ${error.message}`);
-      throw new Error('Failed to generate terrain chunk');
     }
+
+    return heightmap;
   }
 
-  private hashChunk(chunkX: number, chunkZ: number): number {
-    return (chunkX * 73856093 + chunkZ * 19349663 + this.seed) >>> 0;
-  }
-
-  // Configuration-driven biome determination using hot-loadable YAML config  
-  private getBiomeFromConfig(chunkX: number, chunkZ: number): BiomeType {
-    const chunkSeed = this.hashChunk(chunkX, chunkZ);
-    const biomeX = chunkX * 0.15;  
-    const biomeZ = chunkZ * 0.15;
+  /**
+   * Generate simple perlin-style terrain
+   */
+  generatePerlinTerrain(params: TerrainParams): number[][] {
+    const { size, amplitude, seed, minHeight, maxHeight } = params;
     
-    // Generate biome characteristics
-    const elevation = this.noise(biomeX, biomeZ, 0.008, 1);
-    const temperature = this.noise(biomeX + 1000, biomeZ + 1000, 0.012, 1);
-    const moisture = this.noise(biomeX + 2000, biomeZ + 2000, 0.009, 1);
-    
-    // Add chunk-specific randomness
-    const chunkVariation = (chunkSeed % 1000) / 1000.0;
-    
-    // Use configuration manager to determine terrain type
-    const terrainType = this.configManager.determineTerrainType(elevation, temperature, moisture, chunkVariation);
-    const terrainConfig = this.configManager.getTerrainType(terrainType);
-    
-    return {
-      type: terrainType as any,
-      elevation,
-      moisture,
-      temperature,
-      noiseScale: terrainConfig?.noise_algorithms[0]?.frequency || 0.05,
-      heightScale: terrainConfig?.height_range[1] || 20
-    };
-  }
-
-  // Configuration-driven chunk variation
-  private getChunkVariation(worldX: number, worldZ: number, chunkX: number, chunkZ: number, genParams: any): number {
-    // Use generation parameters from config
-    const strength = genParams.chunk_variation_strength;
-    const chunkVariation = Math.sin(chunkX * 0.47) * Math.cos(chunkZ * 0.61) * 3 * strength;
-    const localVariation = this.noise(worldX, worldZ, 0.1, 2 * strength);
-    return chunkVariation + localVariation;
-  }
-
-  // Seamless edge blending between chunks
-  private applyEdgeBlending(height: number, localX: number, localZ: number, size: number, chunkX: number, chunkZ: number, genParams: any): number {
-    const blendDistance = genParams.edge_blending_distance;
-    const smoothing = genParams.transition_smoothing;
-    
-    // Calculate distance to chunk edges
-    const distToLeft = localX;
-    const distToRight = size - 1 - localX;
-    const distToTop = localZ;
-    const distToBottom = size - 1 - localZ;
-    
-    // Find minimum distance to any edge
-    const minDistToEdge = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-    
-    // Only apply blending near edges
-    if (minDistToEdge >= blendDistance) {
-      return height;
-    }
-    
-    // Calculate blend factor (0 at edge, 1 at blend distance)
-    const blendFactor = Math.min(1, minDistToEdge / blendDistance);
-    const smoothBlend = this.smoothStep(blendFactor);
-    
-    // Sample neighboring chunk heights for blending
-    const neighborHeights: number[] = [];
-    
-    // Sample heights from neighboring chunks at edges
-    if (distToLeft < blendDistance) {
-      neighborHeights.push(this.sampleNeighborHeight(chunkX - 1, chunkZ, localX + size, localZ));
-    }
-    if (distToRight < blendDistance) {
-      neighborHeights.push(this.sampleNeighborHeight(chunkX + 1, chunkZ, localX - size, localZ));
-    }
-    if (distToTop < blendDistance) {
-      neighborHeights.push(this.sampleNeighborHeight(chunkX, chunkZ - 1, localX, localZ + size));
-    }
-    if (distToBottom < blendDistance) {
-      neighborHeights.push(this.sampleNeighborHeight(chunkX, chunkZ + 1, localX, localZ - size));
-    }
-    
-    // Average neighboring heights
-    let avgNeighborHeight = height;
-    if (neighborHeights.length > 0) {
-      avgNeighborHeight = neighborHeights.reduce((sum, h) => sum + h, 0) / neighborHeights.length;
-    }
-    
-    // Apply smoothing factor from config
-    const finalBlend = smoothBlend * (1 - smoothing) + smoothing;
-    
-    // Blend between current height and neighbor average
-    return height * finalBlend + avgNeighborHeight * (1 - finalBlend);
-  }
-
-  // Smooth step function for better blending curves
-  private smoothStep(t: number): number {
-    return t * t * (3 - 2 * t);
-  }
-
-  // Sample height from neighboring chunk (simplified approximation)
-  private sampleNeighborHeight(neighborChunkX: number, neighborChunkZ: number, sampleX: number, sampleZ: number): number {
-    // Use the same noise-based approach to approximate neighbor heights
-    const worldX = neighborChunkX * 64 + sampleX;
-    const worldZ = neighborChunkZ * 64 + sampleZ;
-    
-    // Generate approximate height using same base noise
-    const biome = this.getBiomeFromConfig(neighborChunkX, neighborChunkZ);
-    const baseHeight = this.noise(worldX, worldZ, biome.noiseScale, biome.heightScale);
-    
-    return baseHeight;
-  }
-
-  // Analyze neighboring terrain types for better chunk size decisions
-  private analyzeNeighboringTerrainTypes(chunkX: number, chunkZ: number): string[] {
-    const neighbors: string[] = [];
-    
-    // Check adjacent chunks in 8 directions (including diagonals)
-    const offsets = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1],           [0, 1],
-      [1, -1],  [1, 0],  [1, 1]
-    ];
-    
-    for (const [dx, dz] of offsets) {
-      const neighborX = chunkX + dx;
-      const neighborZ = chunkZ + dz;
-      
-      // Get the terrain type for neighboring chunk
-      const neighborBiome = this.getBiomeFromConfig(neighborX, neighborZ);
-      neighbors.push(neighborBiome.type);
-    }
-    
-    return neighbors;
-  }
-
-  private getAverageHeight(heightmap: number[][]): number {
-    let total = 0;
-    let count = 0;
-    
-    for (const row of heightmap) {
-      for (const height of row) {
-        total += height;
-        count++;
-      }
-    }
-    
-    return count > 0 ? total / count : 0;
-  }
-
-  // Generate heightmap image data
-  public generateHeightmapImage(chunk: TerrainChunk): Buffer {
-    const size = chunk.size;
-    const imageData = Buffer.alloc(size * size * 4); // RGBA
-
-    for (let z = 0; z < size; z++) {
+    const heightmap: number[][] = [];
+    for (let y = 0; y < size; y++) {
+      heightmap[y] = [];
       for (let x = 0; x < size; x++) {
-        const height = chunk.heightmap[z][x];
-        const normalizedHeight = Math.floor((height / 80) * 255);
+        let height = 0;
+        let frequency = 0.02;
+        let currentAmplitude = amplitude;
         
-        const index = (z * size + x) * 4;
-        imageData[index] = normalizedHeight;     // R
-        imageData[index + 1] = normalizedHeight; // G
-        imageData[index + 2] = normalizedHeight; // B
-        imageData[index + 3] = 255;              // A
+        for (let octave = 0; octave < 4; octave++) {
+          height += this.noise(x * frequency, y * frequency, seed + octave * 1000) * currentAmplitude;
+          frequency *= 2.0;
+          currentAmplitude *= 0.5;
+        }
+        
+        heightmap[y][x] = minHeight + ((height + amplitude) / (2 * amplitude)) * (maxHeight - minHeight);
+      }
+    }
+    
+    return heightmap;
+  }
+
+  /**
+   * Generate a terrain chunk using the specified algorithm
+   */
+  generateChunk(chunkX: number, chunkZ: number, params: TerrainParams): TerrainChunk {
+    let heightmap: number[][];
+    
+    switch (params.algorithm.toLowerCase()) {
+      case 'mountain':
+        heightmap = this.generateMountainTerrain(params);
+        break;
+      case 'perlin':
+        heightmap = this.generatePerlinTerrain(params);
+        break;
+      default:
+        heightmap = this.generateMountainTerrain(params);
+    }
+
+    // Calculate actual min/max heights without flattening
+    let actualMin = Infinity;
+    let actualMax = -Infinity;
+    
+    for (let y = 0; y < params.size; y++) {
+      for (let x = 0; x < params.size; x++) {
+        if (heightmap[y][x] < actualMin) actualMin = heightmap[y][x];
+        if (heightmap[y][x] > actualMax) actualMax = heightmap[y][x];
       }
     }
 
-    return imageData;
+    return {
+      id: uuidv4(),
+      chunkX,
+      chunkZ,
+      size: params.size,
+      heightmap,
+      algorithm: params.algorithm,
+      minHeight: actualMin,
+      maxHeight: actualMax,
+      generatedAt: Date.now()
+    };
   }
 }

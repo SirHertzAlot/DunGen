@@ -7,6 +7,7 @@ import Dashboard from "@/pages/dashboard";
 import WorldViewer from "@/pages/world-viewer";
 import NotFound from "@/pages/not-found";
 import HeightmapViewer from "@/pages/heightmap-viewer";
+import TerrainDesigner from "@/pages/terrain-designer";
 
 function Router() {
   return (
@@ -17,6 +18,8 @@ function Router() {
       <Route path="/world" component={WorldViewer} />
       <Route path="/heightmap-viewer" component={HeightmapViewer} />
       <Route path="/heightmaps" component={HeightmapViewer} />
+      <Route path="/terrain-designer" component={TerrainDesigner} />
+      <Route path="/designer" component={TerrainDesigner} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>

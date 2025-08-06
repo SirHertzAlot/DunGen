@@ -1073,7 +1073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // It's already a 1D array
-        heights.push(...(heightmap as number[]));
+        heights.push(...(heightmap as unknown as number[]));
       }
       
       // Find min/max for normalization  
@@ -1131,6 +1131,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({
         success: false,
         error: 'Failed to generate heightmap image'
+      });
+    }
+  });
+
+  // Manual terrain generation endpoint
+  app.post('/api/worldgen/manual-generate', async (req, res) => {
+    try {
+      const { generateManualTerrain } = await import('../api/manual-terrain.js');
+      await generateManualTerrain(req, res);
+    } catch (error) {
+      console.error('Failed to load manual terrain generator:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Manual terrain generation failed'
       });
     }
   });
