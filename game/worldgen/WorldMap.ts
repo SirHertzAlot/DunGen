@@ -60,10 +60,10 @@ export class WorldMap {
     let heightScale = 5;
     let noiseScale = 0.1;
 
-    if (mountainRange > 0.7 || elevation > 0.75) {
+    if (mountainRange > 0.8 || elevation > 0.85) { // Higher threshold for sparser mountains
       biomeType = 'mountain';
-      heightScale = 80; // Massive mountain ranges
-      noiseScale = 0.03; // Lower frequency for larger features
+      heightScale = 120; // Even more massive mountain ranges
+      noiseScale = 0.02; // Lower frequency for larger, more spread out features
     } else if (elevation < 0.2) {
       if (moisture > 0.6) {
         biomeType = temperature > 0.4 ? 'swamp' : 'bog';
@@ -162,20 +162,30 @@ export class WorldMap {
         // Octave 7: Micro surface roughness
         height += this.moistureNoise(worldX * frequency, worldZ * frequency) * amplitude * 3;
         
-        // Apply terrain-type specific scaling
-        const continentalShape = this.elevationNoise(worldX * 0.0002, worldZ * 0.0002);
+        // Apply terrain-type specific scaling with better mountain distribution
+        const continentalShape = this.elevationNoise(worldX * 0.0001, worldZ * 0.0001); // Larger scale for sparser mountains
+        const mountainRidge = this.mountainRangeNoise(worldX * 0.0003, worldZ * 0.0003);
         
-        // Scale mountains to be properly massive
-        if (biome.type === 'mountain' || continentalShape > 0.4) {
-          const mountainFactor = Math.pow(Math.max(0, continentalShape), 2);
-          height += mountainFactor * 200; // Massive mountains
+        // Create sparse, realistic mountain ranges with steep slopes
+        const mountainThreshold = 0.6; // Higher threshold = fewer but more dramatic mountains
+        if (biome.type === 'mountain' || (continentalShape > mountainThreshold && mountainRidge > 0.5)) {
+          const mountainFactor = Math.pow(Math.max(0, continentalShape - mountainThreshold), 3); // Cubic for steeper slopes
+          const ridgeFactor = Math.pow(Math.max(0, mountainRidge - 0.5), 2);
+          
+          // Create dramatic elevation changes with steep slopes
+          const steepness = 1 + (mountainFactor * 2); // Multiplier for slope steepness
+          height += mountainFactor * ridgeFactor * 300 * steepness; // Much more dramatic mountains
         }
         
-        // Create dramatic valleys
-        if (continentalShape < -0.3) {
-          const valleyFactor = Math.pow(Math.abs(continentalShape), 1.8);
-          height -= valleyFactor * 80; // Deep valleys
+        // Create deep valleys between mountain ranges
+        if (continentalShape < -0.2 && mountainRidge < 0.3) {
+          const valleyFactor = Math.pow(Math.abs(continentalShape + 0.2), 2.5);
+          height -= valleyFactor * 120; // Deeper valleys for contrast
         }
+        
+        // Add slope steepness modifier based on elevation change
+        const slopeModifier = this.calculateSlopeModifier(worldX, worldZ, height, biome);
+        height = height * slopeModifier;
         
         // Progressive smoothing for realistic terrain
         height = this.applySmoothingFilter(height, worldX, worldZ, biome);
@@ -286,11 +296,11 @@ export class WorldMap {
   }
   
   private applySmoothingFilter(height: number, worldX: number, worldZ: number, biome: BiomeType): number {
-    // Apply progressive smoothing based on terrain type for realistic results
-    const smoothingStrength = 0.15;
+    // Apply terrain-specific smoothing - less smoothing for mountains to preserve steep slopes
+    const baseSmoothingStrength = biome.type === 'mountain' ? 0.05 : 0.15; // Much less smoothing for mountains
     
     // Sample nearby points for smoothing (simplified neighborhood sampling)
-    const sampleRadius = 2;
+    const sampleRadius = biome.type === 'mountain' ? 1 : 2; // Smaller radius for mountains
     let smoothedHeight = height;
     let sampleCount = 1;
     
@@ -310,8 +320,29 @@ export class WorldMap {
     
     const avgNearby = smoothedHeight / sampleCount;
     
-    // Blend original height with smoothed version
-    return height * (1 - smoothingStrength) + avgNearby * smoothingStrength;
+    // Blend original height with smoothed version (less blending for steep terrain)
+    return height * (1 - baseSmoothingStrength) + avgNearby * baseSmoothingStrength;
+  }
+  
+  private calculateSlopeModifier(worldX: number, worldZ: number, currentHeight: number, biome: BiomeType): number {
+    // Calculate slope steepness by sampling neighboring elevations
+    const sampleDistance = 4;
+    const neighbors = [
+      this.elevationNoise((worldX + sampleDistance) * biome.noiseScale, worldZ * biome.noiseScale),
+      this.elevationNoise((worldX - sampleDistance) * biome.noiseScale, worldZ * biome.noiseScale),
+      this.elevationNoise(worldX * biome.noiseScale, (worldZ + sampleDistance) * biome.noiseScale),
+      this.elevationNoise(worldX * biome.noiseScale, (worldZ - sampleDistance) * biome.noiseScale)
+    ];
+    
+    // Calculate elevation change
+    const maxElevationChange = Math.max(...neighbors.map(n => Math.abs(n * biome.heightScale - currentHeight)));
+    
+    // For mountains, enhance steep areas and flatten gradual areas
+    if (biome.type === 'mountain' && maxElevationChange > 15) {
+      return 1 + (maxElevationChange / 50); // Amplify steep areas
+    }
+    
+    return 1.0; // No modification for other terrain types
   }
 
   public getBiomeForChunk(chunkX: number, chunkZ: number): BiomeType {
