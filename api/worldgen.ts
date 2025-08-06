@@ -295,4 +295,76 @@ router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
   }
 });
 
+// Export heightmap as visual data for quality review
+router.get('/heightmap/:x/:z', async (req, res) => {
+  try {
+    const chunkX = parseInt(req.params.x);
+    const chunkZ = parseInt(req.params.z);
+
+    if (isNaN(chunkX) || isNaN(chunkZ)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid chunk coordinates'
+      });
+    }
+
+    const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
+    
+    // Ensure heightmap is a flat array
+    let flatHeightmap = chunk.heightmap;
+    if (Array.isArray(chunk.heightmap[0])) {
+      flatHeightmap = (chunk.heightmap as number[][]).flat();
+    }
+
+    // Find min/max heights for proper normalization
+    const minHeight = Math.min(...flatHeightmap);
+    const maxHeight = Math.max(...flatHeightmap);
+    const heightRange = maxHeight - minHeight;
+    
+    // Convert heightmap to grayscale image data for visual review
+    const size = chunk.size; // Should be 64
+    const imageData = [];
+    
+    for (let i = 0; i < flatHeightmap.length; i++) {
+      // Normalize height to 0-255 grayscale
+      const normalizedHeight = heightRange > 0 ? 
+        Math.floor(((flatHeightmap[i] - minHeight) / heightRange) * 255) : 128;
+      
+      imageData.push({
+        x: i % size,
+        y: Math.floor(i / size),
+        height: flatHeightmap[i],
+        grayscale: normalizedHeight
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        chunkX,
+        chunkZ,
+        size,
+        minHeight,
+        maxHeight,
+        heightRange,
+        imageData,
+        rawHeightmap: flatHeightmap
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to export heightmap', {
+      service: 'WorldGenAPI',
+      chunkX: req.params.x,
+      chunkZ: req.params.z,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export heightmap'
+    });
+  }
+});
+
 export default router;

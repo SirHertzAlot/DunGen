@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import WorldViewer from "@/pages/world-viewer";
 import NotFound from "@/pages/not-found";
+import HeightmapViewer from "@/pages/heightmap-viewer";
 
 function Router() {
   return (
@@ -14,6 +15,8 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/world-viewer" component={WorldViewer} />
       <Route path="/world" component={WorldViewer} />
+      <Route path="/heightmap-viewer" component={HeightmapViewer} />
+      <Route path="/heightmaps" component={HeightmapViewer} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
