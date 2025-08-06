@@ -2,19 +2,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 interface HeightmapData {
-  chunkX: number;
-  chunkZ: number;
-  size: number;
+  width: number;
+  height: number;
   minHeight: number;
   maxHeight: number;
   heightRange: number;
-  imageData: Array<{
-    x: number;
-    y: number;
-    height: number;
-    grayscale: number;
-  }>;
-  rawHeightmap: number[];
+  grayscaleData: number[];
 }
 
 interface HeightmapVisualizerProps {
@@ -44,23 +37,40 @@ function HeightmapVisualizer({ chunkX, chunkZ }: HeightmapVisualizerProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Create ImageData for the heightmap
-    const imageData = ctx.createImageData(data.size, data.size);
+    // Ensure we have valid dimensions with defaults
+    const width = Math.max(1, Math.floor(data.width || 64));
+    const height = Math.max(1, Math.floor(data.height || 64));
     
-    // Fill the image data with grayscale values
-    for (let i = 0; i < data.imageData.length; i++) {
-      const pixel = data.imageData[i];
-      const pixelIndex = (pixel.y * data.size + pixel.x) * 4;
-      
-      // Set RGB to grayscale value (white = high, black = low)
-      imageData.data[pixelIndex] = pixel.grayscale;     // Red
-      imageData.data[pixelIndex + 1] = pixel.grayscale; // Green
-      imageData.data[pixelIndex + 2] = pixel.grayscale; // Blue
-      imageData.data[pixelIndex + 3] = 255;            // Alpha
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      console.error('Invalid canvas dimensions:', width, height);
+      return;
     }
     
-    // Draw the heightmap to canvas
-    ctx.putImageData(imageData, 0, 0);
+    try {
+      // Create ImageData for the heightmap
+      const imageData = ctx.createImageData(width, height);
+      
+      // Ensure we have grayscale data
+      const grayscaleData = data.grayscaleData || [];
+      
+      // Fill the image data with grayscale values
+      for (let i = 0; i < grayscaleData.length && i < width * height; i++) {
+        const grayscaleValue = Math.max(0, Math.min(255, Math.floor(grayscaleData[i] || 128)));
+        const pixelIndex = i * 4;
+        
+        // Set RGB to grayscale value (white = high, black = low)
+        imageData.data[pixelIndex] = grayscaleValue;     // Red
+        imageData.data[pixelIndex + 1] = grayscaleValue; // Green
+        imageData.data[pixelIndex + 2] = grayscaleValue; // Blue
+        imageData.data[pixelIndex + 3] = 255;            // Alpha
+      }
+      
+      // Draw the heightmap to canvas
+      ctx.putImageData(imageData, 0, 0);
+      
+    } catch (error) {
+      console.error('Canvas rendering error:', error);
+    }
     
   }, [data]);
 
@@ -87,15 +97,15 @@ function HeightmapVisualizer({ chunkX, chunkZ }: HeightmapVisualizerProps) {
     <div className="bg-gray-700 p-4 rounded">
       <canvas 
         ref={canvasRef}
-        width={data.size}
-        height={data.size}
+        width={data.width}
+        height={data.height}
         className="w-full h-32 border border-gray-600 rounded image-rendering-pixelated"
         style={{ imageRendering: 'pixelated' }}
       />
       <div className="mt-2 text-xs text-gray-400">
         <div>Chunk ({chunkX}, {chunkZ})</div>
         <div>Range: {data.minHeight.toFixed(1)} - {data.maxHeight.toFixed(1)}</div>
-        <div>Size: {data.size}x{data.size}</div>
+        <div>Size: {data.width}x{data.height}</div>
       </div>
     </div>
   );

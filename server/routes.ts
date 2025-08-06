@@ -1039,6 +1039,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Heightmap image endpoint for visualization
+  app.get('/api/worldgen/heightmap/:x/:z', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
+      const terrainGenerator = TerrainGenerator.getInstance();
+      
+      const chunkX = parseInt(req.params.x);
+      const chunkZ = parseInt(req.params.z);
+
+      if (isNaN(chunkX) || isNaN(chunkZ)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chunk coordinates'
+        });
+      }
+
+      const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
+      
+      // Convert heightmap to grayscale PNG
+      const size = chunk.size;
+      let heightmap = chunk.heightmap;
+      
+      // Handle 2D array format
+      if (Array.isArray(heightmap[0])) {
+        heightmap = (heightmap as number[][]).flat();
+      }
+      
+      // Ensure we have the right number of values
+      if ((heightmap as number[]).length !== size * size) {
+        logger.warn('Heightmap size mismatch for image generation', {
+          service: 'API',
+          expected: size * size,
+          actual: (heightmap as number[]).length
+        });
+      }
+      
+      // Find min/max for normalization
+      const heights = heightmap as number[];
+      const minHeight = Math.min(...heights);
+      const maxHeight = Math.max(...heights);
+      const heightRange = maxHeight - minHeight || 1;
+      
+      // Generate PNG image data
+      const imageData: number[] = [];
+      for (let i = 0; i < heights.length; i++) {
+        const normalizedHeight = (heights[i] - minHeight) / heightRange;
+        const gray = Math.floor(normalizedHeight * 255);
+        imageData.push(gray, gray, gray, 255); // RGBA
+      }
+      
+      // Simple PNG generation (for demo purposes)
+      const pngHeader = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); // PNG signature
+      
+      // For now, return grayscale values as JSON for the frontend to render
+      res.json({
+        success: true,
+        data: {
+          width: size,
+          height: size,
+          minHeight,
+          maxHeight,
+          heightRange,
+          grayscaleData: heights.map(h => Math.floor(((h - minHeight) / heightRange) * 255))
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to generate heightmap image via API', error as Error, {
+        service: 'API',
+        requestId,
+        chunkX: req.params.x,
+        chunkZ: req.params.z
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate heightmap image'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

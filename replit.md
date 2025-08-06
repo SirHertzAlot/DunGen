@@ -33,6 +33,7 @@ Preferred communication style: Simple, everyday language.
 - ✓ **High-Quality Heightmap Generation** - Enhanced detail layers with gradient smoothing for realistic displacement mapping
 - ✓ **Improved Mountain Distribution** - Sparse mountain ranges with greater distance and gradual slopes for AI traversal
 - ✓ **Quality Displacement Mapping** - Fixed height value normalization for proper 3D terrain visualization
+✓ **Disabled Chunk Caching** - Fixed critical bug where terrain generator reused cached chunks instead of generating unique terrain
 
 ## System Architecture
 

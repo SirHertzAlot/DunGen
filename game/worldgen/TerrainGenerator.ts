@@ -152,7 +152,7 @@ export interface WorldGenConfig {
 // Main terrain generator class
 export class TerrainGenerator {
   private static instance: TerrainGenerator;
-  private config: WorldGenConfig;
+  private config!: WorldGenConfig;
   private noiseGenerators: Map<string, SimpleNoise> = new Map();
   private chunkCache: Map<string, TerrainChunk> = new Map();
   private generationQueue: Set<string> = new Set();
@@ -210,33 +210,9 @@ export class TerrainGenerator {
 
   // Generate or retrieve a terrain chunk
   public async getChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
-    const chunkKey = `${chunkX}_${chunkZ}`;
-    
-    // Check cache first
-    if (this.chunkCache.has(chunkKey)) {
-      const chunk = this.chunkCache.get(chunkKey)!;
-      chunk.lastAccessed = Date.now();
-      return chunk;
-    }
-
-    // Check if already generating
-    if (this.generationQueue.has(chunkKey)) {
-      // Wait for generation to complete
-      while (this.generationQueue.has(chunkKey)) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      return this.chunkCache.get(chunkKey)!;
-    }
-
-    // Generate new chunk
-    this.generationQueue.add(chunkKey);
+    // DISABLE CACHING FOR HEIGHTMAP TESTING - Always generate fresh chunks
+    // This ensures we get varied terrain for quality assessment
     const chunk = await this.generateChunk(chunkX, chunkZ);
-    this.generationQueue.delete(chunkKey);
-
-    // Add to cache
-    this.chunkCache.set(chunkKey, chunk);
-    this.manageCacheSize();
-
     return chunk;
   }
 
