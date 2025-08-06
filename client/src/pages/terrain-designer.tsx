@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,7 @@ export default function TerrainDesigner() {
   });
 
   const [lastGenerated, setLastGenerated] = useState<{ x: number; z: number } | null>(null);
+  const [generatedTerrain, setGeneratedTerrain] = useState<any>(null);
 
   const generateTerrain = useMutation({
     mutationFn: async (terrainConfig: TerrainConfig) => {
@@ -68,6 +69,7 @@ export default function TerrainDesigner() {
         description: `Successfully generated ${config.algorithm} terrain at chunk (${config.chunkX}, ${config.chunkZ})`,
       });
       setLastGenerated({ x: config.chunkX, z: config.chunkZ });
+      setGeneratedTerrain(data.data);
       // Invalidate terrain queries to refresh views
       queryClient.invalidateQueries({ queryKey: ['/api/worldgen'] });
     },
@@ -134,6 +136,60 @@ export default function TerrainDesigner() {
 
   const updateConfig = (key: keyof TerrainConfig, value: any) => {
     setConfig(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Terrain visualization component
+  const TerrainVisualization = ({ terrain }: { terrain: any }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+      if (!terrain || !canvasRef.current) return;
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const { heightmap, size, stats } = terrain;
+      const cellSize = Math.min(400 / size, 4); // Max 400px canvas
+      canvas.width = size * cellSize;
+      canvas.height = size * cellSize;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw heightmap
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const height = heightmap[y][x];
+          const normalizedHeight = (height - stats.minHeight) / (stats.maxHeight - stats.minHeight);
+          
+          // Create grayscale color based on height
+          const intensity = Math.floor(normalizedHeight * 255);
+          ctx.fillStyle = `rgb(${intensity}, ${intensity}, ${intensity})`;
+          
+          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+      }
+    }, [terrain]);
+
+    return (
+      <div className="space-y-2">
+        <canvas
+          ref={canvasRef}
+          className="border border-border rounded max-w-full"
+          style={{ imageRendering: 'pixelated' }}
+        />
+        {terrain && (
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div><strong>Statistics:</strong></div>
+            <div>Min Height: {terrain.stats.minHeight.toFixed(1)}</div>
+            <div>Max Height: {terrain.stats.maxHeight.toFixed(1)}</div>
+            <div>Range: {terrain.stats.range.toFixed(1)}</div>
+            <div>Average: {terrain.stats.avgHeight}</div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -410,17 +466,25 @@ export default function TerrainDesigner() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Preview</CardTitle>
-              <CardDescription>Current configuration summary</CardDescription>
+              <CardTitle>Terrain Visualization</CardTitle>
+              <CardDescription>
+                {generatedTerrain ? 
+                  `Generated ${generatedTerrain.algorithm} terrain at (${generatedTerrain.x}, ${generatedTerrain.z})` :
+                  "Generate terrain to see visual preview"
+                }
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div><strong>Position:</strong> ({config.chunkX}, {config.chunkZ})</div>
-              <div><strong>Algorithm:</strong> {config.algorithm}</div>
-              <div><strong>Size:</strong> {config.size}×{config.size}</div>
-              <div><strong>Height Range:</strong> {config.minHeight} to {config.maxHeight}</div>
-              <div><strong>Frequency:</strong> {config.frequency.toFixed(4)}</div>
-              <div><strong>Amplitude:</strong> {config.amplitude}</div>
-              <div><strong>Seed:</strong> {config.seed}</div>
+            <CardContent>
+              {generatedTerrain ? (
+                <TerrainVisualization terrain={generatedTerrain} />
+              ) : (
+                <div className="h-48 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <div className="mb-2">No terrain generated yet</div>
+                    <div className="text-sm">Click "Generate Terrain" to see the heightmap</div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

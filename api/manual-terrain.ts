@@ -60,9 +60,18 @@ export async function generateManualTerrain(req: Request, res: Response) {
       terrainParams
     );
 
-    // Calculate statistics
-    const flatHeights = terrainChunk.heightmap.flat();
-    const avgHeight = flatHeights.reduce((a, b) => a + b, 0) / flatHeights.length;
+    // Calculate statistics without flattening to avoid stack overflow
+    let totalHeight = 0;
+    let totalCells = 0;
+    
+    for (let y = 0; y < terrainChunk.size; y++) {
+      for (let x = 0; x < terrainChunk.size; x++) {
+        totalHeight += terrainChunk.heightmap[y][x];
+        totalCells++;
+      }
+    }
+    
+    const avgHeight = totalHeight / totalCells;
     
     const result = {
       id: terrainChunk.id,
