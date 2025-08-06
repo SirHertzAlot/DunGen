@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import * as yaml from 'yaml';
 import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { WorldMap } from './WorldMap.js';
 
 // Simple noise implementation for terrain generation
 class SimpleNoise {
@@ -155,8 +156,10 @@ export class TerrainGenerator {
   private noiseGenerators: Map<string, SimpleNoise> = new Map();
   private chunkCache: Map<string, TerrainChunk> = new Map();
   private generationQueue: Set<string> = new Set();
+  private worldMap: WorldMap;
 
   constructor(configPath: string = './config/worldgen.yaml') {
+    this.worldMap = new WorldMap();
     this.loadConfig(configPath);
     this.initializeNoiseGenerators();
   }
@@ -241,26 +244,23 @@ export class TerrainGenerator {
     const startTime = Date.now();
     const size = this.config.world.chunk_size;
     
+    // Use new world map system for realistic terrain generation
+    const worldChunk = this.worldMap.generateChunk(chunkX, chunkZ);
+    
     const chunk: TerrainChunk = {
       id: uuidv4(),
       x: chunkX,
       z: chunkZ,
       size,
-      heightmap: [],
-      biomes: [],
+      heightmap: worldChunk.heightmap as any, // New system provides flat array
+      biomes: [{ type: worldChunk.biome.type, coverage: 1.0 }],
       features: [],
       generated: false,
       lastAccessed: Date.now()
     };
 
-    // Initialize arrays
-    for (let x = 0; x < size; x++) {
-      chunk.heightmap[x] = [];
-      chunk.biomes[x] = [];
-    }
-
-    // Run generation pipeline
-    await this.runGenerationPipeline(chunk);
+    // Skip the old generation pipeline since we have the new world map data
+    // await this.runGenerationPipeline(chunk);
 
     chunk.generated = true;
     

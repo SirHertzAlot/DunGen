@@ -34,13 +34,35 @@ router.get('/chunk/:x/:z', async (req, res) => {
 
     const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
 
+    // Ensure heightmap is a flat array with correct size
+    let flatHeightmap = chunk.heightmap;
+    if (Array.isArray(chunk.heightmap[0])) {
+      // If it's 2D, flatten it
+      flatHeightmap = (chunk.heightmap as number[][]).flat();
+    }
+
+    // Validate heightmap data and ensure we have the expected size (64x64 = 4096)
+    const expectedSize = chunk.size * chunk.size;
+    if (flatHeightmap.length !== expectedSize) {
+      logger.warn('Heightmap size mismatch', {
+        service: 'WorldGenAPI',
+        expected: expectedSize,
+        actual: flatHeightmap.length,
+        chunkSize: chunk.size
+      });
+    }
+
+    const validHeightmap = (flatHeightmap as number[]).map(h => 
+      (typeof h === 'number' && !isNaN(h)) ? h : 0
+    );
+
     res.json({
       success: true,
       data: {
         id: chunk.id,
         position: [chunkX, chunkZ],
         size: chunk.size,
-        heightmap: chunk.heightmap,
+        heightmap: validHeightmap,
         biomes: chunk.biomes,
         features: chunk.features,
         generated: chunk.generated
