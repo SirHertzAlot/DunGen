@@ -100,6 +100,9 @@ export class SimpleTerrain {
           // Add chunk-specific variation to prevent repetition
           height += this.getChunkVariation(worldX, worldZ, chunkX, chunkZ, genParams);
           
+          // Apply edge blending for seamless chunk transitions
+          height = this.applyEdgeBlending(height, x, z, size, chunkX, chunkZ, genParams);
+          
           // Clamp to terrain configuration range
           height = Math.max(
             terrainConfig.height_range[0], 
@@ -170,6 +173,77 @@ export class SimpleTerrain {
     const chunkVariation = Math.sin(chunkX * 0.47) * Math.cos(chunkZ * 0.61) * 3 * strength;
     const localVariation = this.noise(worldX, worldZ, 0.1, 2 * strength);
     return chunkVariation + localVariation;
+  }
+
+  // Seamless edge blending between chunks
+  private applyEdgeBlending(height: number, localX: number, localZ: number, size: number, chunkX: number, chunkZ: number, genParams: any): number {
+    const blendDistance = genParams.edge_blending_distance;
+    const smoothing = genParams.transition_smoothing;
+    
+    // Calculate distance to chunk edges
+    const distToLeft = localX;
+    const distToRight = size - 1 - localX;
+    const distToTop = localZ;
+    const distToBottom = size - 1 - localZ;
+    
+    // Find minimum distance to any edge
+    const minDistToEdge = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+    
+    // Only apply blending near edges
+    if (minDistToEdge >= blendDistance) {
+      return height;
+    }
+    
+    // Calculate blend factor (0 at edge, 1 at blend distance)
+    const blendFactor = Math.min(1, minDistToEdge / blendDistance);
+    const smoothBlend = this.smoothStep(blendFactor);
+    
+    // Sample neighboring chunk heights for blending
+    const neighborHeights: number[] = [];
+    
+    // Sample heights from neighboring chunks at edges
+    if (distToLeft < blendDistance) {
+      neighborHeights.push(this.sampleNeighborHeight(chunkX - 1, chunkZ, localX + size, localZ));
+    }
+    if (distToRight < blendDistance) {
+      neighborHeights.push(this.sampleNeighborHeight(chunkX + 1, chunkZ, localX - size, localZ));
+    }
+    if (distToTop < blendDistance) {
+      neighborHeights.push(this.sampleNeighborHeight(chunkX, chunkZ - 1, localX, localZ + size));
+    }
+    if (distToBottom < blendDistance) {
+      neighborHeights.push(this.sampleNeighborHeight(chunkX, chunkZ + 1, localX, localZ - size));
+    }
+    
+    // Average neighboring heights
+    let avgNeighborHeight = height;
+    if (neighborHeights.length > 0) {
+      avgNeighborHeight = neighborHeights.reduce((sum, h) => sum + h, 0) / neighborHeights.length;
+    }
+    
+    // Apply smoothing factor from config
+    const finalBlend = smoothBlend * (1 - smoothing) + smoothing;
+    
+    // Blend between current height and neighbor average
+    return height * finalBlend + avgNeighborHeight * (1 - finalBlend);
+  }
+
+  // Smooth step function for better blending curves
+  private smoothStep(t: number): number {
+    return t * t * (3 - 2 * t);
+  }
+
+  // Sample height from neighboring chunk (simplified approximation)
+  private sampleNeighborHeight(neighborChunkX: number, neighborChunkZ: number, sampleX: number, sampleZ: number): number {
+    // Use the same noise-based approach to approximate neighbor heights
+    const worldX = neighborChunkX * 64 + sampleX;
+    const worldZ = neighborChunkZ * 64 + sampleZ;
+    
+    // Generate approximate height using same base noise
+    const biome = this.getBiomeFromConfig(neighborChunkX, neighborChunkZ);
+    const baseHeight = this.noise(worldX, worldZ, biome.noiseScale, biome.heightScale);
+    
+    return baseHeight;
   }
 
   private getAverageHeight(heightmap: number[][]): number {

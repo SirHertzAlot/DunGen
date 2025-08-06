@@ -146,15 +146,33 @@ export class TerrainConfigManager {
   public determineTerrainType(elevation: number, temperature: number, moisture: number, chunkVariation: number): string {
     const terrainTypes = this.getAllTerrainTypes();
     
-    // Check each terrain type against conditions
+    // Collect all matching terrain types with priority scores
+    const candidates: { type: string; priority: number }[] = [];
+    
     for (const [key, config] of Object.entries(terrainTypes)) {
       if (this.matchesBiomeConditions(config.biome_conditions, elevation, temperature, moisture, chunkVariation)) {
-        return key;
+        // Calculate priority based on how well conditions match
+        let priority = 1.0;
+        
+        // Add randomness based on chunk variation
+        priority += (chunkVariation - 0.5) * 0.5;
+        
+        candidates.push({ type: key, priority });
       }
     }
-
-    // Fallback to grassland or first available type
-    return 'grassland';
+    
+    if (candidates.length === 0) {
+      return 'grassland'; // Fallback
+    }
+    
+    // Sort by priority and select the best match with some randomness
+    candidates.sort((a, b) => b.priority - a.priority);
+    
+    // Use chunk variation to sometimes pick second or third choice for diversity
+    const index = chunkVariation > 0.8 ? Math.min(1, candidates.length - 1) :
+                  chunkVariation > 0.6 ? Math.min(2, candidates.length - 1) : 0;
+    
+    return candidates[index].type;
   }
 
   private matchesBiomeConditions(

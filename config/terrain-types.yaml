@@ -183,8 +183,8 @@ terrain_types:
       - scattered_trees
 
 generation_parameters:
-  chunk_variation_strength: 0.3
-  transition_smoothing: 0.2
-  edge_blending_distance: 8
+  chunk_variation_strength: 0.4
+  transition_smoothing: 0.15
+  edge_blending_distance: 12
   feature_spawn_chance: 0.15
-  unique_seed_multipliers: [73, 137, 241, 359, 467]
+  unique_seed_multipliers: [73, 137, 241, 359, 467, 587, 719, 829]
