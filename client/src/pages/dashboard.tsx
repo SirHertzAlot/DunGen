@@ -4,8 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Globe, Activity, Gamepad2, Zap, Database, Cpu, Network } from 'lucide-react';
+import { Users, Globe, Activity, Gamepad2, Zap, Database, Cpu, Network, Box } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Link } from 'wouter';
 
 interface Region {
   id: string;
@@ -74,12 +75,20 @@ export default function Dashboard() {
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Gamepad2 className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">MMORPG Backend Dashboard</h1>
-            <Badge variant={systemHealth ? "default" : "destructive"}>
-              {systemHealth ? "Online" : "Offline"}
-            </Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 mb-2">
+              <Gamepad2 className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl font-bold">MMORPG Backend Dashboard</h1>
+              <Badge variant={systemHealth ? "default" : "destructive"}>
+                {systemHealth ? "Online" : "Offline"}
+              </Badge>
+            </div>
+            <Link href="/world">
+              <Button className="flex items-center gap-2">
+                <Box className="h-4 w-4" />
+                3D World Viewer
+              </Button>
+            </Link>
           </div>
           <p className="text-muted-foreground">
             Real-time monitoring and management of your MMORPG backend system
