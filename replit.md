@@ -31,7 +31,7 @@ Preferred communication style: Simple, everyday language.
 - ✓ **Unique Chunk Generation** - Each chunk uses unique seeds preventing repetitive heightmaps
 - ✓ **Seamless Edge Blending** - Proper chunk-to-chunk transitions with neighbor height sampling
 - ✓ **High-Quality Heightmap Generation** - Enhanced detail layers with gradient smoothing for realistic displacement mapping
-- ✓ **Improved Mountain Distribution** - Sparse mountain ranges with greater distance and steeper natural slopes
+- ✓ **Improved Mountain Distribution** - Sparse mountain ranges with greater distance and gradual slopes for AI traversal
 - ✓ **Quality Displacement Mapping** - Fixed height value normalization for proper 3D terrain visualization
 
 ## System Architecture

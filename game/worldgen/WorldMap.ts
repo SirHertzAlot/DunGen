@@ -166,21 +166,21 @@ export class WorldMap {
         const continentalShape = this.elevationNoise(worldX * 0.0001, worldZ * 0.0001); // Larger scale for sparser mountains
         const mountainRidge = this.mountainRangeNoise(worldX * 0.0003, worldZ * 0.0003);
         
-        // Create sparse, realistic mountain ranges with steep slopes
-        const mountainThreshold = 0.6; // Higher threshold = fewer but more dramatic mountains
-        if (biome.type === 'mountain' || (continentalShape > mountainThreshold && mountainRidge > 0.5)) {
-          const mountainFactor = Math.pow(Math.max(0, continentalShape - mountainThreshold), 3); // Cubic for steeper slopes
-          const ridgeFactor = Math.pow(Math.max(0, mountainRidge - 0.5), 2);
+        // Create sparse mountain ranges with gradual, traversable slopes for AI pathfinding
+        const mountainThreshold = 0.7; // Higher threshold = fewer mountains with better spacing
+        if (biome.type === 'mountain' || (continentalShape > mountainThreshold && mountainRidge > 0.6)) {
+          const mountainFactor = Math.pow(Math.max(0, continentalShape - mountainThreshold), 1.5); // Gentler power for gradual slopes
+          const ridgeFactor = Math.pow(Math.max(0, mountainRidge - 0.6), 1.2);
           
-          // Create dramatic elevation changes with steep slopes
-          const steepness = 1 + (mountainFactor * 2); // Multiplier for slope steepness
-          height += mountainFactor * ridgeFactor * 300 * steepness; // Much more dramatic mountains
+          // Create moderate elevation changes with gradual, passable slopes
+          const gentleSlope = 0.5 + (mountainFactor * 0.3); // Much gentler slope multiplier
+          height += mountainFactor * ridgeFactor * 60 * gentleSlope; // Moderate mountains with gradual slopes
         }
         
-        // Create deep valleys between mountain ranges
-        if (continentalShape < -0.2 && mountainRidge < 0.3) {
-          const valleyFactor = Math.pow(Math.abs(continentalShape + 0.2), 2.5);
-          height -= valleyFactor * 120; // Deeper valleys for contrast
+        // Create gentle valleys between mountain ranges  
+        if (continentalShape < -0.3 && mountainRidge < 0.2) {
+          const valleyFactor = Math.pow(Math.abs(continentalShape + 0.3), 1.8);
+          height -= valleyFactor * 30; // Gentle valleys that are still traversable
         }
         
         // Add slope steepness modifier based on elevation change
@@ -299,8 +299,8 @@ export class WorldMap {
   }
   
   private applySmoothingFilter(height: number, worldX: number, worldZ: number, biome: BiomeType): number {
-    // Apply terrain-specific smoothing - less smoothing for mountains to preserve steep slopes
-    const baseSmoothingStrength = biome.type === 'mountain' ? 0.05 : 0.15; // Much less smoothing for mountains
+    // Apply terrain-specific smoothing - MORE smoothing for mountains to create gradual slopes
+    const baseSmoothingStrength = biome.type === 'mountain' ? 0.25 : 0.15; // More smoothing for mountains for AI traversal
     
     // Sample nearby points for smoothing (simplified neighborhood sampling)
     const sampleRadius = biome.type === 'mountain' ? 1 : 2; // Smaller radius for mountains
@@ -328,8 +328,8 @@ export class WorldMap {
   }
   
   private calculateSlopeModifier(worldX: number, worldZ: number, currentHeight: number, biome: BiomeType): number {
-    // Calculate slope steepness by sampling neighboring elevations
-    const sampleDistance = 4;
+    // Calculate slope gradualness to ensure AI can traverse terrain
+    const sampleDistance = 6; // Larger sample distance for smoother gradients
     const neighbors = [
       this.elevationNoise((worldX + sampleDistance) * biome.noiseScale, worldZ * biome.noiseScale),
       this.elevationNoise((worldX - sampleDistance) * biome.noiseScale, worldZ * biome.noiseScale),
@@ -340,9 +340,9 @@ export class WorldMap {
     // Calculate elevation change
     const maxElevationChange = Math.max(...neighbors.map(n => Math.abs(n * biome.heightScale - currentHeight)));
     
-    // For mountains, enhance steep areas and flatten gradual areas
-    if (biome.type === 'mountain' && maxElevationChange > 15) {
-      return 1 + (maxElevationChange / 50); // Amplify steep areas
+    // For mountains, reduce steep areas to make them more gradual and traversable
+    if (biome.type === 'mountain' && maxElevationChange > 10) {
+      return 0.7 - (maxElevationChange / 100); // Reduce steepness for better pathfinding
     }
     
     return 1.0; // No modification for other terrain types
