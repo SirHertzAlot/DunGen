@@ -4,7 +4,7 @@ import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { WorldMap } from './WorldMap.js';
 import * as THREE from 'three';
-// Custom advanced terrain generation - professional algorithms for massive mountain ranges
+import * as Terrain from 'three.terrain.js';
 
 // Terrain chunk data structure
 export interface TerrainChunk {
@@ -163,12 +163,48 @@ export class TerrainGenerator {
     // Create unique seed for this chunk
     const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
     
-    // PROFESSIONAL CUSTOM TERRAIN GENERATION SYSTEM
-    // Advanced algorithms for massive mountain ranges with unique variations
-    const heightmap = this.generateAdvancedHeightmap(size, chunkX, chunkZ, chunkSeed);
+    // USING THREE.TERRAIN.JS LIBRARY - PROFESSIONAL TERRAIN GENERATION
+    // Create terrain geometry using the three.terrain.js library
+    const geometry = new THREE.PlaneGeometry(size, size, size - 1, size - 1);
     
-    // Apply biome-specific modifications for mountains
-    this.applyBiomeModifications(heightmap, size, chunkX, chunkZ, chunkSeed);
+    // Apply THREE.TERRAIN Mountain algorithm for massive mountain ranges
+    Terrain.Mountain(geometry, {
+      seed: chunkSeed,
+      frequency: 0.002 + (Math.abs(chunkX + chunkZ) * 0.0001), // Vary per chunk
+      amplitude: 150 + (Math.abs(chunkX) * 10) // Massive mountains 150-250 height
+    });
+    
+    // Add DiamondSquare for additional fractal detail
+    Terrain.DiamondSquare(geometry, {
+      seed: chunkSeed + 1337,
+      frequency: 0.008,
+      amplitude: 80
+    });
+    
+    // Add Perlin noise for natural variation
+    Terrain.Perlin(geometry, {
+      seed: chunkSeed + 7777,
+      frequency: 0.015,
+      amplitude: 40
+    });
+    
+    // Apply smoothing for realistic slopes
+    Terrain.Smooth(geometry, {
+      iterations: 2
+    });
+    
+    // Extract heightmap from the geometry
+    const vertices = geometry.attributes.position.array;
+    const heightmap: number[][] = [];
+    
+    for (let z = 0; z < size; z++) {
+      heightmap[z] = [];
+      for (let x = 0; x < size; x++) {
+        const index = z * size + x;
+        const height = vertices[index * 3 + 1]; // Y component is height
+        heightmap[z][x] = Math.max(0, Math.min(350, height + 50)); // Clamp and offset for massive mountains
+      }
+    }
     
     const chunk: TerrainChunk = {
       id: uuidv4(),

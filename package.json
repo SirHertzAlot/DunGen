@@ -87,6 +87,7 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.179.1",
     "three-terrain": "^0.0.10",
+    "three.terrain.js": "^2.0.0",
     "tw-animate-css": "^1.2.5",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
