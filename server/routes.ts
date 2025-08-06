@@ -930,8 +930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
-      const terrainGenerator = TerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
@@ -943,7 +943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
+      const chunk = terrainGenerator.generateChunk(chunkX, chunkZ);
 
       res.json({
         success: true,
@@ -977,8 +977,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
-      const terrainGenerator = TerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const minX = parseInt(req.params.minX);
       const minZ = parseInt(req.params.minZ);
@@ -1004,7 +1004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const chunks = [];
       for (let x = minX; x <= maxX; x++) {
         for (let z = minZ; z <= maxZ; z++) {
-          const chunk = await terrainGenerator.getChunk(x, z);
+          const chunk = terrainGenerator.generateChunk(x, z);
           chunks.push({
             id: chunk.id,
             position: [x, z],
@@ -1045,8 +1045,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const sharp = (await import('sharp')).default;
-      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
-      const terrainGenerator = TerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
@@ -1058,18 +1058,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
+      const chunk = terrainGenerator.generateChunk(chunkX, chunkZ);
       
       // Convert heightmap to grayscale PNG using Sharp
       const size = chunk.size;
       let heightmap = chunk.heightmap;
       
-      // Handle 2D array format
+      // Convert 2D array to 1D array for processing
+      const heights: number[] = [];
       if (Array.isArray(heightmap[0])) {
-        heightmap = (heightmap as number[][]).flat();
+        // It's a 2D array, flatten it
+        for (const row of heightmap as number[][]) {
+          heights.push(...row);
+        }
+      } else {
+        // It's already a 1D array
+        heights.push(...(heightmap as number[]));
       }
-      
-      const heights = heightmap as number[];
       
       // Find min/max for normalization
       const minHeight = Math.min(...heights);
