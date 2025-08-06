@@ -930,8 +930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
-      const terrainGenerator = SimpleTerrain.getInstance();
+      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
+      const terrainGenerator = ProperTerrainGenerator.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
@@ -977,8 +977,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
-      const terrainGenerator = SimpleTerrain.getInstance();
+      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
+      const terrainGenerator = ProperTerrainGenerator.getInstance();
       
       const minX = parseInt(req.params.minX);
       const minZ = parseInt(req.params.minZ);
@@ -1045,8 +1045,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const sharp = (await import('sharp')).default;
-      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
-      const terrainGenerator = SimpleTerrain.getInstance();
+      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
+      const terrainGenerator = ProperTerrainGenerator.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
@@ -1076,7 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         heights.push(...(heightmap as number[]));
       }
       
-      // Find min/max for normalization
+      // Find min/max for normalization  
       const minHeight = Math.min(...heights);
       const maxHeight = Math.max(...heights);
       const heightRange = maxHeight - minHeight || 1;
