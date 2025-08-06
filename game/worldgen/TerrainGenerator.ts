@@ -142,52 +142,66 @@ export class TerrainGenerator {
 
   // Hash function for chunk coordinates to generate truly unique seeds
   private hashChunkCoords(chunkX: number, chunkZ: number): number {
-    // Use multiple prime numbers and world position to ensure no repeating patterns
+    // Create a deterministic but unique seed for each chunk position
     const prime1 = 73856093;
     const prime2 = 19349663;
     const prime3 = 83492791;
-    const prime4 = 11400714819;
     
     const seed = this.config.world.seed || 12345;
     
-    // Create unique hash using chunk world coordinates and multiple primes
+    // Use chunk coordinates to create unique seed - NO TIMESTAMP
     let hash = seed;
-    hash ^= (chunkX * prime1);
-    hash ^= (chunkZ * prime2);  
-    hash ^= ((chunkX + chunkZ) * prime3);
-    hash ^= ((chunkX * chunkZ) * prime4);
+    hash = (hash * prime1 + chunkX) % 2147483647;
+    hash = (hash * prime2 + chunkZ) % 2147483647;
+    hash = (hash * prime3 + (chunkX * chunkZ)) % 2147483647;
     
-    // Add current timestamp component for extra uniqueness during development
-    hash ^= (Date.now() % 100000);
-    
-    return Math.abs(hash) % 2147483647;
+    return Math.abs(hash);
   }
 
   private async generateChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
     const startTime = Date.now();
     const size = this.config.world.chunk_size;
     
-    // Use THREE.Terrain for professional terrain generation
-    const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
-    
-    // Create terrain options with unique seed for each chunk
-    const options = {
-      ...this.terrainOptions,
-      seed: chunkSeed,
-    };
-    
-    // Generate terrain using THREE.Terrain
-    const terrainGeometry = Terrain(options);
-    const vertices = terrainGeometry.attributes.position.array;
-    
-    // Convert THREE.js vertices to 2D heightmap
+    // Generate completely unique terrain for each chunk using position-based patterns
     const heightmap: number[][] = [];
+    
+    // Create unique base patterns for each chunk using chunk coordinates
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
-        const index = z * size + x;
-        const height = vertices[index * 3 + 1]; // Y component is height
-        heightmap[z][x] = Math.max(0, Math.min(80, height)); // Clamp to 0-80 range
+        // Use world coordinates for unique patterns
+        const worldX = chunkX * size + x;
+        const worldZ = chunkZ * size + z;
+        
+        // Create multiple noise layers with different characteristics based on chunk position
+        let height = 0;
+        
+        // Base terrain layer - varies by chunk position
+        const baseFreq = 0.01 + (Math.abs(chunkX) * 0.0001) + (Math.abs(chunkZ) * 0.0001);
+        height += Math.sin(worldX * baseFreq) * Math.cos(worldZ * baseFreq) * 20;
+        
+        // Mountain layer - only in certain chunk regions
+        if ((chunkX + chunkZ) % 3 === 0) {
+          const mountainFreq = 0.005 + (chunkX * 0.0002);
+          height += Math.sin(worldX * mountainFreq) * Math.sin(worldZ * mountainFreq) * 40;
+        }
+        
+        // Hill pattern - varies by chunk coordinates
+        const hillFreq = 0.02 + (Math.abs(chunkX * chunkZ) * 0.00001);
+        height += Math.sin(worldX * hillFreq + chunkX) * Math.cos(worldZ * hillFreq + chunkZ) * 15;
+        
+        // Ridge pattern - unique per chunk
+        if (chunkX % 2 === 0) {
+          height += Math.sin(worldX * 0.008 + chunkZ) * 25;
+        }
+        if (chunkZ % 2 === 0) {
+          height += Math.cos(worldZ * 0.008 + chunkX) * 25;
+        }
+        
+        // Add chunk-specific offset to ensure no two chunks are identical
+        height += (chunkX * 13 + chunkZ * 17) % 20;
+        
+        heightmap[z][x] = Math.max(0, Math.min(80, height + 40)); // Clamp to 0-80 range, offset by 40
       }
     }
     
@@ -569,48 +583,40 @@ export class TerrainGenerator {
   }
 
   private async applyMassiveMountainTerrain(chunk: TerrainChunk): Promise<void> {
-    // Use three-terrain library to generate unique massive mountain terrain
-    const chunkSeed = this.hashChunkCoords(chunk.x, chunk.z);
-    
-    // Create geometry for mountain generation using three-terrain
-    const geometry = new THREE.PlaneGeometry(chunk.size, chunk.size, chunk.size - 1, chunk.size - 1);
-    
-    // Apply multiple three-terrain algorithms with different seeds for unique results
-    // First layer: Mountain ridges with unique seed
-    Terrain.Mountain(geometry, {
-      seed: chunkSeed,
-      frequency: 0.003 + (chunk.x * 0.0001) + (chunk.z * 0.0001), // Vary frequency by position
-      maxHeight: 180 + (Math.abs(chunk.x + chunk.z) % 50),         // Vary height by position
-      minHeight: 0,
-      stretch: true
-    });
-    
-    // Second layer: Alpine peaks with different seed and parameters
-    Terrain.DiamondSquare(geometry, {
-      seed: chunkSeed + 7919, // Different prime offset
-      frequency: 0.008 + (chunk.z * 0.0002),
-      maxHeight: 120 + (Math.abs(chunk.x * chunk.z) % 40),
-      minHeight: 0
-    });
-    
-    // Third layer: Add volcanic peaks for variety based on chunk position
-    if ((chunk.x + chunk.z) % 3 === 0) {
-      Terrain.Fault(geometry, {
-        seed: chunkSeed + 31337,
-        iterations: 4 + (Math.abs(chunk.x) % 3),
-        maxHeight: 100,
-        minHeight: 0
-      });
-    }
-    
-    // Extract heightmap from the generated geometry
-    const vertices = geometry.attributes.position.array;
-    
+    // Generate unique massive mountain terrain using position-based patterns
     for (let z = 0; z < chunk.size; z++) {
       for (let x = 0; x < chunk.size; x++) {
-        const index = z * chunk.size + x;
-        const height = vertices[index * 3 + 1]; // Y component from three.js geometry
-        chunk.heightmap[x][z] = Math.max(0, height);
+        const worldX = chunk.x * chunk.size + x;
+        const worldZ = chunk.z * chunk.size + z;
+        
+        let height = 0;
+        
+        // Massive mountain base - unique per chunk
+        const mountainFreq1 = 0.002 + (chunk.x * 0.0001) + (chunk.z * 0.0001);
+        height += Math.sin(worldX * mountainFreq1) * Math.cos(worldZ * mountainFreq1) * 120;
+        
+        // Alpine peaks - varies by chunk coordinates
+        const peakFreq = 0.005 + (Math.abs(chunk.x * chunk.z) * 0.00001);
+        height += Math.sin(worldX * peakFreq + chunk.x) * Math.sin(worldZ * peakFreq + chunk.z) * 80;
+        
+        // Ridge systems - unique patterns per chunk
+        if (chunk.x % 3 === 0) {
+          height += Math.sin(worldX * 0.003 + chunk.z * 7) * 60;
+        }
+        if (chunk.z % 3 === 0) {
+          height += Math.cos(worldZ * 0.003 + chunk.x * 11) * 60;
+        }
+        
+        // Volcanic peaks in specific chunk positions
+        if ((chunk.x + chunk.z) % 5 === 0) {
+          const volcanoFreq = 0.001 + (chunk.x * 0.0002);
+          height += Math.pow(Math.sin(worldX * volcanoFreq) * Math.cos(worldZ * volcanoFreq), 2) * 100;
+        }
+        
+        // Add chunk-specific massive offset
+        height += (chunk.x * 19 + chunk.z * 23) % 40;
+        
+        chunk.heightmap[x][z] = Math.max(0, Math.min(250, height + 100)); // Massive mountain heights
       }
     }
   }
