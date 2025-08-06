@@ -35,7 +35,7 @@ export default function WorldViewer() {
           const data = await response.json();
           
           if (data.success && data.data.heightmap) {
-            const heightmap = data.data.heightmap;
+            const heightmap2D = data.data.heightmap; // This is a 2D array
             const biomes = data.data.biomes || [];
             
             // Create terrain using a simple approach that works
@@ -47,58 +47,32 @@ export default function WorldViewer() {
             
             // Apply actual heightmap data from the new world generation system
             const vertices = geometry.attributes.position.array;
-            console.log(`Chunk (${x}, ${z}): Heightmap length: ${heightmap ? heightmap.length : 'undefined'}, vertices: ${vertices.length / 3}`);
+            console.log(`Chunk (${x}, ${z}): Heightmap is ${heightmap2D.length}x${heightmap2D[0] ? heightmap2D[0].length : 0}, vertices: ${vertices.length / 3}`);
             
-            if (heightmap && heightmap.length > 0) {
-              const heightmapSize = Math.sqrt(heightmap.length);
-              console.log(`Heightmap is ${heightmapSize}x${heightmapSize}`);
+            if (heightmap2D && heightmap2D.length > 0 && heightmap2D[0] && heightmap2D[0].length > 0) {
+              const heightmapRows = heightmap2D.length;
+              const heightmapCols = heightmap2D[0].length;
+              console.log(`Processing ${heightmapRows}x${heightmapCols} heightmap`);
               
-              if (heightmap.length === 4096) {
-                // Perfect case: 64x64 heightmap for 32x32 geometry
-                for (let i = 2; i < vertices.length; i += 3) {
-                  const vertexIndex = (i - 2) / 3;
-                  const row = Math.floor(vertexIndex / 32);
-                  const col = vertexIndex % 32;
-                  
-                  // Sample heightmap at 2x resolution
-                  const heightRow = Math.min(row * 2, 63);
-                  const heightCol = Math.min(col * 2, 63);
-                  const heightIndex = heightRow * 64 + heightCol;
-                  
-                  if (heightIndex < heightmap.length && !isNaN(heightmap[heightIndex])) {
-                    vertices[i] = heightmap[heightIndex] * heightScale;
+              // Apply heights to vertices (geometry is 32x32 segments = 1024 vertices)
+              for (let i = 2; i < vertices.length; i += 3) {
+                const vertexIndex = (i - 2) / 3;
+                const row = Math.floor(vertexIndex / 32);
+                const col = vertexIndex % 32;
+                
+                // Scale to heightmap coordinates  
+                const heightRow = Math.floor((row / 31) * (heightmapRows - 1));
+                const heightCol = Math.floor((col / 31) * (heightmapCols - 1));
+                
+                if (heightRow < heightmapRows && heightCol < heightmapCols) {
+                  const height = heightmap2D[heightRow][heightCol];
+                  if (!isNaN(height)) {
+                    vertices[i] = height * heightScale;
                   } else {
                     vertices[i] = 0;
                   }
-                }
-              } else if (heightmap.length === 1024) {
-                // 32x32 heightmap matches geometry exactly
-                for (let i = 2; i < vertices.length; i += 3) {
-                  const vertexIndex = (i - 2) / 3;
-                  if (vertexIndex < heightmap.length && !isNaN(heightmap[vertexIndex])) {
-                    vertices[i] = heightmap[vertexIndex] * heightScale;
-                  } else {
-                    vertices[i] = 0;
-                  }
-                }
-              } else {
-                // Sample from whatever size we have
-                console.log(`Sampling from ${heightmapSize}x${heightmapSize} heightmap`);
-                for (let i = 2; i < vertices.length; i += 3) {
-                  const vertexIndex = (i - 2) / 3;
-                  const row = Math.floor(vertexIndex / 32);
-                  const col = vertexIndex % 32;
-                  
-                  // Scale to heightmap coordinates
-                  const heightRow = Math.floor((row / 31) * (heightmapSize - 1));
-                  const heightCol = Math.floor((col / 31) * (heightmapSize - 1));
-                  const heightIndex = heightRow * heightmapSize + heightCol;
-                  
-                  if (heightIndex < heightmap.length && !isNaN(heightmap[heightIndex])) {
-                    vertices[i] = heightmap[heightIndex] * heightScale;
-                  } else {
-                    vertices[i] = 0;
-                  }
+                } else {
+                  vertices[i] = 0;
                 }
               }
             } else {
