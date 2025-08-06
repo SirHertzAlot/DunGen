@@ -140,11 +140,27 @@ export class TerrainGenerator {
     return chunk;
   }
 
-  // Hash function for chunk coordinates to generate deterministic seeds
+  // Hash function for chunk coordinates to generate truly unique seeds
   private hashChunkCoords(chunkX: number, chunkZ: number): number {
-    // Simple hash function for chunk coordinates
-    const seed = this.config.world.seed;
-    return (chunkX * 73856093 + chunkZ * 19349663 + seed) >>> 0;
+    // Use multiple prime numbers and world position to ensure no repeating patterns
+    const prime1 = 73856093;
+    const prime2 = 19349663;
+    const prime3 = 83492791;
+    const prime4 = 11400714819;
+    
+    const seed = this.config.world.seed || 12345;
+    
+    // Create unique hash using chunk world coordinates and multiple primes
+    let hash = seed;
+    hash ^= (chunkX * prime1);
+    hash ^= (chunkZ * prime2);  
+    hash ^= ((chunkX + chunkZ) * prime3);
+    hash ^= ((chunkX * chunkZ) * prime4);
+    
+    // Add current timestamp component for extra uniqueness during development
+    hash ^= (Date.now() % 100000);
+    
+    return Math.abs(hash) % 2147483647;
   }
 
   private async generateChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
@@ -553,29 +569,39 @@ export class TerrainGenerator {
   }
 
   private async applyMassiveMountainTerrain(chunk: TerrainChunk): Promise<void> {
-    // Use three-terrain library to generate massive mountain terrain
+    // Use three-terrain library to generate unique massive mountain terrain
     const chunkSeed = this.hashChunkCoords(chunk.x, chunk.z);
     
     // Create geometry for mountain generation using three-terrain
     const geometry = new THREE.PlaneGeometry(chunk.size, chunk.size, chunk.size - 1, chunk.size - 1);
     
-    // Apply three-terrain mountain generation algorithms
-    // Use mountain_ridges algorithm for massive mountain ranges
+    // Apply multiple three-terrain algorithms with different seeds for unique results
+    // First layer: Mountain ridges with unique seed
     Terrain.Mountain(geometry, {
       seed: chunkSeed,
-      frequency: 0.005, // Lower frequency for massive features
-      maxHeight: 200,   // Massive mountain heights
+      frequency: 0.003 + (chunk.x * 0.0001) + (chunk.z * 0.0001), // Vary frequency by position
+      maxHeight: 180 + (Math.abs(chunk.x + chunk.z) % 50),         // Vary height by position
       minHeight: 0,
       stretch: true
     });
     
-    // Apply alpine peaks on top for variety
+    // Second layer: Alpine peaks with different seed and parameters
     Terrain.DiamondSquare(geometry, {
-      seed: chunkSeed + 1,
-      frequency: 0.01,
-      maxHeight: 150,
+      seed: chunkSeed + 7919, // Different prime offset
+      frequency: 0.008 + (chunk.z * 0.0002),
+      maxHeight: 120 + (Math.abs(chunk.x * chunk.z) % 40),
       minHeight: 0
     });
+    
+    // Third layer: Add volcanic peaks for variety based on chunk position
+    if ((chunk.x + chunk.z) % 3 === 0) {
+      Terrain.Fault(geometry, {
+        seed: chunkSeed + 31337,
+        iterations: 4 + (Math.abs(chunk.x) % 3),
+        maxHeight: 100,
+        minHeight: 0
+      });
+    }
     
     // Extract heightmap from the generated geometry
     const vertices = geometry.attributes.position.array;
