@@ -3,7 +3,7 @@ import * as yaml from 'yaml';
 import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { WorldMap } from './WorldMap.js';
-import { createNoise2D } from 'simplex-noise';
+import { createNoise2D, NoiseFunction2D } from 'simplex-noise';
 
 // Terrain chunk data structure
 export interface TerrainChunk {
@@ -64,7 +64,7 @@ export interface WorldGenConfig {
 export class TerrainGenerator {
   private static instance: TerrainGenerator;
   private config!: WorldGenConfig;
-  private noiseGenerators: Map<string, SimpleNoise> = new Map();
+  private noiseGenerators: Map<string, NoiseFunction2D> = new Map();
   private chunkCache: Map<string, TerrainChunk> = new Map();
   private generationQueue: Set<string> = new Set();
   private worldMap: WorldMap;
@@ -105,13 +105,13 @@ export class TerrainGenerator {
   private initializeNoiseGenerators(): void {
     const seed = this.config.world.seed;
     
-    // Create different noise generators for different purposes
-    this.noiseGenerators.set('base_terrain', new SimpleNoise(`base_${seed}`));
-    this.noiseGenerators.set('mountains', new SimpleNoise(`mountain_${seed}`));
-    this.noiseGenerators.set('valleys', new SimpleNoise(`valley_${seed}`));
-    this.noiseGenerators.set('temperature', new SimpleNoise(`temp_${seed}`));
-    this.noiseGenerators.set('humidity', new SimpleNoise(`humid_${seed}`));
-    this.noiseGenerators.set('features', new SimpleNoise(`features_${seed}`));
+    // Create different simplex noise generators for different purposes
+    this.noiseGenerators.set('base_terrain', createNoise2D(() => seed / 1000));
+    this.noiseGenerators.set('mountains', createNoise2D(() => (seed + 1000) / 1000));
+    this.noiseGenerators.set('valleys', createNoise2D(() => (seed + 2000) / 1000));
+    this.noiseGenerators.set('temperature', createNoise2D(() => (seed + 3000) / 1000));
+    this.noiseGenerators.set('humidity', createNoise2D(() => (seed + 4000) / 1000));
+    this.noiseGenerators.set('features', createNoise2D(() => (seed + 5000) / 1000));
 
     logger.info('Noise generators initialized', {
       service: 'TerrainGenerator',
@@ -199,7 +199,7 @@ export class TerrainGenerator {
 
         // Multi-octave noise
         for (let octave = 0; octave < octaves; octave++) {
-          height += noise.noise2D(worldX * currentFrequency, worldZ * currentFrequency) * currentAmplitude;
+          height += noise(worldX * currentFrequency, worldZ * currentFrequency) * currentAmplitude;
           currentAmplitude *= persistence;
           currentFrequency *= lacunarity;
         }
@@ -226,7 +226,7 @@ export class TerrainGenerator {
         let currentFrequency = frequency;
 
         for (let octave = 0; octave < octaves; octave++) {
-          let noiseValue = noise.noise2D(worldX * currentFrequency, worldZ * currentFrequency);
+          let noiseValue = noise(worldX * currentFrequency, worldZ * currentFrequency);
           
           // Ridged noise for mountains
           if (config.algorithm === 'ridged_noise') {
@@ -242,7 +242,7 @@ export class TerrainGenerator {
 
         // Apply mask
         if (mask_threshold !== undefined) {
-          const maskNoise = noise.noise2D(worldX * 0.01, worldZ * 0.01);
+          const maskNoise = noise(worldX * 0.01, worldZ * 0.01);
           if (maskNoise < mask_threshold) {
             layerHeight *= (maskNoise - mask_threshold) / (1.0 - mask_threshold);
           }
@@ -278,8 +278,8 @@ export class TerrainGenerator {
         const height = chunk.heightmap[x][z];
 
         // Generate temperature and humidity
-        const temperature = tempNoise.noise2D(worldX * config.temperature_frequency, worldZ * config.temperature_frequency);
-        const humidity = humidNoise.noise2D(worldX * config.humidity_frequency, worldZ * config.humidity_frequency);
+        const temperature = tempNoise(worldX * config.temperature_frequency, worldZ * config.temperature_frequency);
+        const humidity = humidNoise(worldX * config.humidity_frequency, worldZ * config.humidity_frequency);
 
         // Determine biome based on height, temperature, and humidity
         const biome = this.determineBiome(height, temperature, humidity);
