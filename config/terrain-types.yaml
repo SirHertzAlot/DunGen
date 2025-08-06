@@ -1,24 +1,29 @@
 terrain_types:
   mountain:
-    name: "Mountain Terrain"
-    description: "Jagged peaks and steep ridges"
-    height_range: [35, 80]
+    name: "Massive Mountain Range"
+    description: "One enormous mountain range spanning the entire area"
+    height_range: [120, 300]
     noise_algorithms:
-      - type: "ridged_noise"
-        frequency: 0.008
-        amplitude_factor: 0.6
-        octaves: 3
-        ridged: true
-      - type: "fractal_noise" 
-        frequency: 0.02
-        amplitude_factor: 0.4
-        octaves: 2
-        power: 1.5
-      - type: "detail_noise"
-        frequency: 0.05
-        amplitude_factor: 0.3
-        octaves: 1
-        power: 2.0
+      - type: "mountain_spine"
+        frequency: 0.001
+        amplitude_factor: 2.0
+        octaves: 8
+        power: 3.5
+        lacunarity: 2.5
+        persistence: 0.6
+        ridge_sharpness: 4.0
+      - type: "continental_ridges"
+        frequency: 0.0005
+        amplitude_factor: 1.5
+        octaves: 6  
+        power: 2.8
+        ridge_offset: 1.0
+      - type: "massive_elevation"
+        frequency: 0.0008
+        amplitude_factor: 1.8
+        octaves: 5
+        power: 4.2
+        elevation_bias: 0.7
     biome_conditions:
       elevation_min: 0.65
       temperature_range: [-1, 0.4]

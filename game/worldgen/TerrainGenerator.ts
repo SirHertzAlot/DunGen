@@ -508,4 +508,86 @@ export class TerrainGenerator {
   public getConfig(): WorldGenConfig {
     return this.config;
   }
+
+  // Force generate a mountain chunk using massive mountain range system
+  public async generateMountainChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
+    const chunkKey = `${chunkX},${chunkZ}`;
+    
+    // Create massive mountain chunk
+    const chunk: TerrainChunk = {
+      id: uuidv4(),
+      x: chunkX,
+      z: chunkZ,
+      size: 512, // Force massive 512x512 chunk for mountain ranges
+      heightmap: [],
+      biomes: [],
+      features: [],
+      generated: true,
+      lastAccessed: Date.now()
+    };
+
+    // Initialize massive heightmap and biomes
+    for (let x = 0; x < chunk.size; x++) {
+      chunk.heightmap[x] = [];
+      chunk.biomes[x] = [];
+      for (let z = 0; z < chunk.size; z++) {
+        chunk.heightmap[x][z] = 0;
+        chunk.biomes[x][z] = {
+          name: 'mountain',
+          temperature: 0.2,
+          humidity: 0.4,
+          color: [139, 137, 137] as [number, number, number]
+        };
+      }
+    }
+
+    // Generate massive mountain range using our advanced algorithms
+    await this.applyMassiveMountainTerrain(chunk);
+    
+    // Cache the chunk
+    this.chunkCache.set(chunkKey, chunk);
+    
+    logger.info(`Generated massive mountain chunk (${chunkX}, ${chunkZ}) - mountain biome (massive scale, size: ${chunk.size}x${chunk.size}) using advanced mountain algorithms`);
+
+    return chunk;
+  }
+
+  private async applyMassiveMountainTerrain(chunk: TerrainChunk): Promise<void> {
+    const mountainConfig = this.terrainConfig.terrain_types.mountain;
+    if (!mountainConfig) return;
+
+    const heightScale = mountainConfig.height_range[1] - mountainConfig.height_range[0];
+    const baseHeight = mountainConfig.height_range[0];
+
+    for (let x = 0; x < chunk.size; x++) {
+      for (let z = 0; z < chunk.size; z++) {
+        const worldX = chunk.x * chunk.size + x;
+        const worldZ = chunk.z * chunk.size + z;
+
+        let totalHeight = 0;
+        let totalWeight = 0;
+
+        // Apply each massive mountain algorithm
+        for (const algorithm of mountainConfig.noise_algorithms) {
+          const noiseValue = this.noiseEngine.applyNoiseAlgorithm(
+            algorithm,
+            worldX,
+            worldZ,
+            0, // seedOffset
+            heightScale
+          );
+
+          const weight = algorithm.amplitude_factor || 1.0;
+          totalHeight += noiseValue * weight;
+          totalWeight += weight;
+        }
+
+        // Normalize and apply to heightmap
+        const normalizedHeight = totalWeight > 0 ? totalHeight / totalWeight : 0;
+        const finalHeight = baseHeight + (normalizedHeight * heightScale);
+        
+        chunk.heightmap[x][z] = Math.max(0, finalHeight);
+      }
+    }
+  }
 }

@@ -367,4 +367,57 @@ router.get('/heightmap/:x/:z', async (req, res) => {
   }
 });
 
+// Test endpoint to force mountain terrain generation
+router.get('/mountain/:x/:z', async (req, res) => {
+  try {
+    const chunkX = parseInt(req.params.x);
+    const chunkZ = parseInt(req.params.z);
+
+    if (isNaN(chunkX) || isNaN(chunkZ)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid chunk coordinates'
+      });
+    }
+
+    const chunk = await terrainGenerator.generateMountainChunk(chunkX, chunkZ);
+
+    // Ensure heightmap is a flat array
+    let flatHeightmap = chunk.heightmap;
+    if (Array.isArray(chunk.heightmap[0])) {
+      flatHeightmap = (chunk.heightmap as number[][]).flat();
+    }
+
+    const validHeightmap = (flatHeightmap as number[]).map(h => 
+      (typeof h === 'number' && !isNaN(h)) ? h : 0
+    );
+
+    res.json({
+      success: true,
+      data: {
+        id: chunk.id,
+        position: [chunkX, chunkZ],
+        size: chunk.size,
+        heightmap: validHeightmap,
+        biomes: chunk.biomes,
+        features: chunk.features,
+        generated: chunk.generated
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to generate mountain chunk', {
+      service: 'WorldGenAPI',
+      chunkX: req.params.x,
+      chunkZ: req.params.z,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate mountain terrain'
+    });
+  }
+});
+
 export default router;

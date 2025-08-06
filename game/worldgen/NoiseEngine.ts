@@ -69,6 +69,18 @@ export class NoiseEngine {
         result = this.generateGentleHills(worldX, worldZ, algorithm, effectiveSeed);
         break;
 
+      case 'mountain_spine':
+        result = this.generateMountainSpine(worldX, worldZ, algorithm, effectiveSeed);
+        break;
+
+      case 'continental_ridges':
+        result = this.generateContinentalRidges(worldX, worldZ, algorithm, effectiveSeed);
+        break;
+
+      case 'massive_elevation':
+        result = this.generateMassiveElevation(worldX, worldZ, algorithm, effectiveSeed);
+        break;
+
       case 'detail_noise':
       case 'ripple_noise':
       case 'fine_sand':
@@ -210,5 +222,88 @@ export class NoiseEngine {
   private generateDetailNoise(worldX: number, worldZ: number, algorithm: NoiseAlgorithm, seed: number): number {
     // Generic detail noise for fine features
     return this.baseNoise(worldX, worldZ, algorithm.frequency, seed);
+  }
+
+  // ====== MASSIVE MOUNTAIN RANGE ALGORITHMS ======
+
+  private generateMountainSpine(worldX: number, worldZ: number, algorithm: NoiseAlgorithm, seed: number): number {
+    // Creates a massive mountain spine using extreme noise parameters
+    let result = 0;
+    const octaves = algorithm.octaves || 8;
+    const lacunarity = algorithm.lacunarity || 2.5;
+    const persistence = algorithm.persistence || 0.6;
+    const ridgeSharpness = algorithm.ridge_sharpness || 4.0;
+    
+    let frequency = algorithm.frequency;
+    let amplitude = 1.0;
+    
+    for (let i = 0; i < octaves; i++) {
+      // Generate ridged noise for sharp mountain peaks
+      const noise = this.baseNoise(worldX, worldZ, frequency, seed + i * 77);
+      const ridged = 1 - Math.abs(noise * 2 - 1); // Create ridged pattern
+      const sharpened = Math.pow(ridged, ridgeSharpness); // Sharpen peaks dramatically
+      
+      result += sharpened * amplitude;
+      
+      frequency *= lacunarity;
+      amplitude *= persistence;
+    }
+    
+    // Apply extreme power curve for massive elevation
+    const power = algorithm.power || 3.5;
+    return Math.pow(Math.max(0, result), power);
+  }
+
+  private generateContinentalRidges(worldX: number, worldZ: number, algorithm: NoiseAlgorithm, seed: number): number {
+    // Continental-scale ridge systems
+    let result = 0;
+    const octaves = algorithm.octaves || 6;
+    const ridgeOffset = algorithm.ridge_offset || 1.0;
+    
+    let frequency = algorithm.frequency;
+    let amplitude = 1.0;
+    
+    for (let i = 0; i < octaves; i++) {
+      const noise1 = this.baseNoise(worldX, worldZ, frequency, seed + i * 123);
+      const noise2 = this.baseNoise(worldZ, worldX, frequency * 1.1, seed + i * 234);
+      
+      // Create continental ridge patterns
+      const ridge = Math.abs(noise1 - noise2 + ridgeOffset);
+      const continental = Math.pow(ridge, algorithm.power || 2.8);
+      
+      result += continental * amplitude;
+      
+      frequency *= 2.1;
+      amplitude *= 0.65;
+    }
+    
+    return result;
+  }
+
+  private generateMassiveElevation(worldX: number, worldZ: number, algorithm: NoiseAlgorithm, seed: number): number {
+    // Massive elevation base with extreme height scaling
+    let result = 0;
+    const octaves = algorithm.octaves || 5;
+    const elevationBias = algorithm.elevation_bias || 0.7;
+    
+    let frequency = algorithm.frequency;
+    let amplitude = 1.0;
+    
+    for (let i = 0; i < octaves; i++) {
+      // Multiple noise layers for massive terrain
+      const primary = this.baseNoise(worldX, worldZ, frequency, seed + i * 345);
+      const secondary = this.baseNoise(worldX * 1.3, worldZ * 0.8, frequency * 1.7, seed + i * 456);
+      
+      // Combine with elevation bias for massive height
+      const combined = (primary * 0.7 + secondary * 0.3 + elevationBias);
+      const massive = Math.pow(Math.max(0, combined), algorithm.power || 4.2);
+      
+      result += massive * amplitude;
+      
+      frequency *= 2.3;
+      amplitude *= 0.55;
+    }
+    
+    return result;
   }
 }
