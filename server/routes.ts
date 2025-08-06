@@ -629,6 +629,302 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ECS and Unity integration endpoints
+  app.get('/api/ecs/status', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const { unityBridge } = await import('../game/unity/UnityBridge');
+      
+      const ecsStats = ecsManager.getPerformanceStats();
+      const unityStatus = unityBridge.getConnectionStatus();
+      const activeCombats = ecsManager.getActiveCombats();
+      
+      res.json({ 
+        success: true, 
+        data: {
+          ecs: ecsStats,
+          unity: unityStatus,
+          activeCombats: activeCombats.length,
+          timestamp: Date.now()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get ECS status via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.post('/api/ecs/create-character', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { playerId, characterName, position, characterClass, race } = req.body;
+      
+      if (!playerId || !characterName || !position) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: playerId, characterName, position'
+        });
+      }
+
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const entityId = await ecsManager.createPlayerCharacter({
+        playerId,
+        characterName,
+        position,
+        characterClass: characterClass || 'fighter',
+        race: race || 'human'
+      });
+
+      logger.info('Player character created via API', {
+        service: 'API',
+        requestId,
+        entityId,
+        playerId,
+        characterName
+      });
+
+      res.status(201).json({ 
+        success: true, 
+        data: { entityId, playerId, characterName }
+      });
+    } catch (error) {
+      logger.error('Failed to create character via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(400).json({ 
+        success: false, 
+        error: 'Failed to create character',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/ecs/create-npc', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { npcType, challengeRating, position, faction } = req.body;
+      
+      if (!npcType || challengeRating === undefined || !position) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: npcType, challengeRating, position'
+        });
+      }
+
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const entityId = await ecsManager.createNPC({
+        npcType,
+        challengeRating,
+        position,
+        faction
+      });
+
+      logger.info('NPC created via API', {
+        service: 'API',
+        requestId,
+        entityId,
+        npcType,
+        challengeRating
+      });
+
+      res.status(201).json({ 
+        success: true, 
+        data: { entityId, npcType, challengeRating }
+      });
+    } catch (error) {
+      logger.error('Failed to create NPC via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(400).json({ 
+        success: false, 
+        error: 'Failed to create NPC',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/ecs/attack', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { attackerId, targetId, weaponId } = req.body;
+      
+      if (!attackerId || !targetId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: attackerId, targetId'
+        });
+      }
+
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const success = await ecsManager.initiateAttack({
+        attackerId,
+        targetId,
+        weaponId
+      });
+
+      if (success) {
+        logger.info('Attack initiated via API', {
+          service: 'API',
+          requestId,
+          attackerId,
+          targetId,
+          weaponId
+        });
+
+        res.json({ 
+          success: true, 
+          message: 'Attack queued successfully'
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Failed to initiate attack'
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to initiate attack via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.post('/api/ecs/move', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { entityId, targetX, targetY, targetZ } = req.body;
+      
+      if (!entityId || targetX === undefined || targetY === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: entityId, targetX, targetY'
+        });
+      }
+
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const success = await ecsManager.moveEntity({
+        entityId,
+        targetX,
+        targetY,
+        targetZ: targetZ || 0
+      });
+
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: 'Movement command sent'
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Failed to move entity'
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to move entity via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.post('/api/ecs/cast-spell', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { casterId, spellId, targetId, targetPosition } = req.body;
+      
+      if (!casterId || !spellId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: casterId, spellId'
+        });
+      }
+
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const success = await ecsManager.castSpell({
+        casterId,
+        spellId,
+        targetId,
+        targetPosition
+      });
+
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: 'Spell cast queued successfully'
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          error: 'Failed to cast spell'
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to cast spell via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  app.get('/api/ecs/combats', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const activeCombats = ecsManager.getActiveCombats();
+      
+      res.json({ 
+        success: true, 
+        data: activeCombats,
+        count: activeCombats.length
+      });
+    } catch (error) {
+      logger.error('Failed to get active combats via API', error as Error, {
+        service: 'API',
+        requestId
+      });
+      
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

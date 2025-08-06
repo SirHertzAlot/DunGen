@@ -65,7 +65,23 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+    
+    // Initialize ECS and Unity systems after server starts
+    try {
+      const { ecsManager } = await import('../game/ecs/ECSManager');
+      const { unityBridge } = await import('../game/unity/UnityBridge');
+
+      // Initialize Unity communication bridge on port 8080
+      await unityBridge.initialize(8080);
+      
+      // Start ECS manager with 60fps updates
+      await ecsManager.start();
+
+      log(`[ecs] Unity ECS systems initialized - WebSocket on port 8080`);
+    } catch (error) {
+      console.error(`[ecs] Failed to initialize game systems:`, error);
+    }
   });
 })();
