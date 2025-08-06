@@ -1138,13 +1138,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Manual terrain generation endpoint
   app.post('/api/worldgen/manual-generate', async (req, res) => {
     try {
-      const { generateManualTerrain } = await import('../api/manual-terrain.js');
-      await generateManualTerrain(req, res);
+      const { generateThreeTerrain } = await import('../api/three-terrain-generator.js');
+      await generateThreeTerrain(req, res);
     } catch (error) {
-      console.error('Failed to load manual terrain generator:', error);
+      console.error('Failed to load THREE.Terrain generator:', error);
       res.status(500).json({
         success: false,
-        error: 'Manual terrain generation failed'
+        error: 'THREE.Terrain generation failed'
       });
     }
   });

@@ -35,7 +35,7 @@ export default function TerrainDesigner() {
   const [config, setConfig] = useState<TerrainConfig>({
     chunkX: 0,
     chunkZ: 0,
-    algorithm: 'mountain',
+    algorithm: 'hill',
     size: 256,
     frequency: 0.005,
     amplitude: 400,
@@ -84,29 +84,29 @@ export default function TerrainDesigner() {
 
   const presets = {
     'Massive Mountains': {
-      algorithm: 'mountain',
+      algorithm: 'hill',
       size: 256,
       frequency: 0.005,
       amplitude: 400,
       octaves: 6,
-      minHeight: 0,
+      minHeight: 50,
       maxHeight: 800,
       erosionIterations: 5,
       smoothingPasses: 3
     },
     'Sharp Peaks': {
-      algorithm: 'mountain',
+      algorithm: 'fault',
       size: 128,
       frequency: 0.008,
       amplitude: 300,
       octaves: 8,
-      minHeight: 50,
+      minHeight: 0,
       maxHeight: 600,
       erosionIterations: 2,
       smoothingPasses: 1
     },
     'Rolling Hills': {
-      algorithm: 'perlin',
+      algorithm: 'hill',
       size: 256,
       frequency: 0.02,
       amplitude: 80,
@@ -116,16 +116,27 @@ export default function TerrainDesigner() {
       erosionIterations: 1,
       smoothingPasses: 3
     },
-    'Gentle Terrain': {
-      algorithm: 'perlin',
+    'Diamond Square': {
+      algorithm: 'diamondsquare',
       size: 128,
-      frequency: 0.03,
-      amplitude: 50,
+      frequency: 0.01,
+      amplitude: 150,
       octaves: 3,
       minHeight: 0,
-      maxHeight: 100,
+      maxHeight: 300,
       erosionIterations: 0,
       smoothingPasses: 2
+    },
+    'Cosine Waves': {
+      algorithm: 'cosine',
+      size: 64,
+      frequency: 0.03,
+      amplitude: 80,
+      octaves: 3,
+      minHeight: 0,
+      maxHeight: 200,
+      erosionIterations: 0,
+      smoothingPasses: 1
     }
   };
 
