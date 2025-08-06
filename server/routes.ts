@@ -925,6 +925,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // World generation endpoints
+  app.get('/api/worldgen/chunk/:x/:z', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
+      const terrainGenerator = TerrainGenerator.getInstance();
+      
+      const chunkX = parseInt(req.params.x);
+      const chunkZ = parseInt(req.params.z);
+
+      if (isNaN(chunkX) || isNaN(chunkZ)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chunk coordinates'
+        });
+      }
+
+      const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
+
+      res.json({
+        success: true,
+        data: {
+          id: chunk.id,
+          position: [chunkX, chunkZ],
+          size: chunk.size,
+          heightmap: chunk.heightmap,
+          biomes: chunk.biomes,
+          features: chunk.features,
+          generated: chunk.generated
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to get terrain chunk via API', error as Error, {
+        service: 'API',
+        requestId,
+        chunkX: req.params.x,
+        chunkZ: req.params.z
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate terrain chunk'
+      });
+    }
+  });
+
+  app.get('/api/worldgen/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
+      const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
+      const terrainGenerator = TerrainGenerator.getInstance();
+      
+      const minX = parseInt(req.params.minX);
+      const minZ = parseInt(req.params.minZ);
+      const maxX = parseInt(req.params.maxX);
+      const maxZ = parseInt(req.params.maxZ);
+
+      if (isNaN(minX) || isNaN(minZ) || isNaN(maxX) || isNaN(maxZ)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid region coordinates'
+        });
+      }
+
+      // Limit region size to prevent excessive data transfer
+      const maxRegionSize = 4;
+      if (maxX - minX > maxRegionSize || maxZ - minZ > maxRegionSize) {
+        return res.status(400).json({
+          success: false,
+          error: `Region too large. Maximum size is ${maxRegionSize}x${maxRegionSize} chunks`
+        });
+      }
+
+      const chunks = [];
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          const chunk = await terrainGenerator.getChunk(x, z);
+          chunks.push({
+            id: chunk.id,
+            position: [x, z],
+            size: chunk.size,
+            heightmap: chunk.heightmap,
+            biomes: chunk.biomes,
+            features: chunk.features
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          region: { minX, minZ, maxX, maxZ },
+          chunks: chunks,
+          count: chunks.length
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to get region chunks via API', error as Error, {
+        service: 'API',
+        requestId,
+        region: [req.params.minX, req.params.minZ, req.params.maxX, req.params.maxZ]
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate region chunks'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

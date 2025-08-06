@@ -23,6 +23,9 @@ Preferred communication style: Simple, everyday language.
 - ✓ **Super Fast Live Action Combat** - 60fps updates, real-time attack resolution, initiative system
 - ✓ **Unity Communication Bridge** - WebSocket integration for seamless client-server sync
 - ✓ **ECS API Endpoints** - Create characters/NPCs, initiate attacks, cast spells, movement commands
+- ✓ **Procedural Generation Pipeline** - YAML-configured multi-step terrain generation with built-in noise algorithms
+- ✓ **Chunk-Based World System** - 64x64 terrain chunks with heightmaps, biomes, and feature placement
+- ✓ **Dashboard Integration** - World generation testing interface with real-time chunk preview
 
 ## System Architecture
 

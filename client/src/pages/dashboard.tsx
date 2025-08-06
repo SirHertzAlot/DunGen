@@ -4,9 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Globe, Activity, Gamepad2, Zap, Database, Cpu, Network, Box } from 'lucide-react';
+import { Users, Globe, Activity, Gamepad2, Zap, Database, Cpu, Network, Box, Map, Mountain } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Link } from 'wouter';
+import { useState } from 'react';
 
 interface Region {
   id: string;
@@ -39,6 +40,8 @@ interface SystemStats {
 }
 
 export default function Dashboard() {
+  const [testChunkCoords, setTestChunkCoords] = useState({ x: 0, z: 0 });
+  
   // Query for regions data
   const { data: regionsResponse, isLoading: regionsLoading } = useQuery<{success: boolean, data: Region[]}>({
     queryKey: ['/api/regions'],
@@ -49,6 +52,12 @@ export default function Dashboard() {
   const { data: healthResponse } = useQuery<{status: string, timestamp: string, service: string}>({
     queryKey: ['/api/health'],
     refetchInterval: 2000 // Refresh every 2 seconds
+  });
+
+  // Query for terrain chunk (only when coordinates change)
+  const { data: terrainResponse, isLoading: terrainLoading } = useQuery<{success: boolean, data: any}>({
+    queryKey: [`/api/worldgen/chunk/${testChunkCoords.x}/${testChunkCoords.z}`],
+    enabled: true // Always enabled to test the procedural generation
   });
 
   const regions = regionsResponse?.data || [];
@@ -152,7 +161,7 @@ export default function Dashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="regions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="regions" className="flex items-center gap-2">
               <Globe className="h-4 w-4" />
               Regions
@@ -160,6 +169,10 @@ export default function Dashboard() {
             <TabsTrigger value="players" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Players
+            </TabsTrigger>
+            <TabsTrigger value="worldgen" className="flex items-center gap-2">
+              <Mountain className="h-4 w-4" />
+              World Gen
             </TabsTrigger>
             <TabsTrigger value="system" className="flex items-center gap-2">
               <Cpu className="h-4 w-4" />
@@ -346,6 +359,151 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* World Generation Tab */}
+          <TabsContent value="worldgen">
+            <Card>
+              <CardHeader>
+                <CardTitle>Procedural World Generation</CardTitle>
+                <CardDescription>
+                  Test and monitor the YAML-configured procedural generation pipeline
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Test Chunk Generation */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Test Chunk Generation</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-sm font-medium">Chunk X</label>
+                        <input
+                          type="number"
+                          value={testChunkCoords.x}
+                          onChange={(e) => setTestChunkCoords(prev => ({ ...prev, x: parseInt(e.target.value) || 0 }))}
+                          className="w-full mt-1 px-3 py-1 border rounded-md text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Chunk Z</label>
+                        <input
+                          type="number"
+                          value={testChunkCoords.z}
+                          onChange={(e) => setTestChunkCoords(prev => ({ ...prev, z: parseInt(e.target.value) || 0 }))}
+                          className="w-full mt-1 px-3 py-1 border rounded-md text-sm"
+                        />
+                      </div>
+                    </div>
+                    
+                    {terrainLoading ? (
+                      <div className="p-4 border rounded-lg">
+                        <div className="animate-pulse space-y-2">
+                          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                          <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    ) : terrainResponse?.success ? (
+                      <div className="p-4 border rounded-lg space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">Chunk Generated</span>
+                          <Badge variant="default">Success</Badge>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <div>Position: [{terrainResponse.data.position[0]}, {terrainResponse.data.position[1]}]</div>
+                          <div>Size: {terrainResponse.data.size}x{terrainResponse.data.size}</div>
+                          <div>Features: {terrainResponse.data.features?.length || 0}</div>
+                          <div>Biomes: {terrainResponse.data.biomes ? 'Generated' : 'None'}</div>
+                        </div>
+                        {terrainResponse.data.features?.length > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-sm font-medium">Generated Features:</span>
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {terrainResponse.data.features.slice(0, 5).map((feature: any, i: number) => (
+                                <div key={i} className="text-xs p-2 bg-gray-50 rounded">
+                                  <div className="font-semibold">{feature.type}</div>
+                                  <div>Position: [{Math.round(feature.x)}, {Math.round(feature.y)}, {Math.round(feature.z)}]</div>
+                                  {feature.properties?.biome && <div>Biome: {feature.properties.biome}</div>}
+                                </div>
+                              ))}
+                              {terrainResponse.data.features.length > 5 && (
+                                <div className="text-xs text-gray-500">
+                                  ... and {terrainResponse.data.features.length - 5} more features
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 border rounded-lg">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">Generation Failed</span>
+                          <Badge variant="destructive">Error</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2">
+                          Could not generate terrain chunk. Check server logs.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* World Generation Config */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Generation Pipeline</h4>
+                    <div className="space-y-3">
+                      <div className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Base Terrain</span>
+                          <Badge variant="default">Active</Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">Simplex noise heightmap generation</p>
+                      </div>
+                      
+                      <div className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Mountains</span>
+                          <Badge variant="default">Active</Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">Ridged noise layer for mountain ranges</p>
+                      </div>
+                      
+                      <div className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Biomes</span>
+                          <Badge variant="default">Active</Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">Temperature/humidity-based biome mapping</p>
+                      </div>
+                      
+                      <div className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Features</span>
+                          <Badge variant="default">Active</Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">Villages, dungeons, forests placement</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium">Quick Actions</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setTestChunkCoords({ x: Math.floor(Math.random() * 10), z: Math.floor(Math.random() * 10) })}>
+                          <Map className="w-4 h-4 mr-2" />
+                          Random Chunk
+                        </Button>
+                        <Button size="sm" asChild>
+                          <Link href="/world-viewer">
+                            <Gamepad2 className="w-4 h-4 mr-2" />
+                            3D Viewer
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Network Tab */}
