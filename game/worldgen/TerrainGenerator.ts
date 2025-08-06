@@ -4,7 +4,8 @@ import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { WorldMap } from './WorldMap.js';
 import * as THREE from 'three';
-import Terrain from 'three-terrain';
+// @ts-ignore - three-terrain module doesn't have proper types
+const Terrain = require('three-terrain');
 
 // Terrain chunk data structure
 export interface TerrainChunk {
@@ -213,14 +214,14 @@ export class TerrainGenerator {
       z: chunkZ,
       size,
       heightmap,
-      biomes: [{
-        type: 'grassland',
-        elevation: 0.5,
-        moisture: 0.5,
-        temperature: 0.5,
-        noiseScale: 0.1,
-        heightScale: 20
-      }],
+      biomes: Array.from({ length: size }, () => 
+        Array.from({ length: size }, () => ({
+          name: 'grassland',
+          temperature: 0.5,
+          humidity: 0.5,
+          color: [100, 150, 50]
+        }))
+      ),
       features: [],
       generated: true,
       lastAccessed: Date.now()
@@ -341,8 +342,7 @@ export class TerrainGenerator {
   }
 
   private async generateBiomes(chunk: TerrainChunk, config: any): Promise<void> {
-    const tempNoise = this.noiseGenerators.get('temperature')!;
-    const humidNoise = this.noiseGenerators.get('humidity')!;
+    // Generate temperature and humidity using simple noise functions;
 
     for (let x = 0; x < chunk.size; x++) {
       for (let z = 0; z < chunk.size; z++) {
@@ -350,9 +350,9 @@ export class TerrainGenerator {
         const worldZ = chunk.z * chunk.size + z;
         const height = chunk.heightmap[x][z];
 
-        // Generate temperature and humidity
-        const temperature = tempNoise(worldX * config.temperature_frequency, worldZ * config.temperature_frequency);
-        const humidity = humidNoise(worldX * config.humidity_frequency, worldZ * config.humidity_frequency);
+        // Generate temperature and humidity using simple noise
+        const temperature = Math.sin(worldX * 0.001) * Math.cos(worldZ * 0.001);
+        const humidity = Math.cos(worldX * 0.0015) * Math.sin(worldZ * 0.0015);
 
         // Determine biome based on height, temperature, and humidity
         const biome = this.determineBiome(height, temperature, humidity);
@@ -433,7 +433,7 @@ export class TerrainGenerator {
         const x = Math.floor(Math.random() * chunk.size);
         const z = Math.floor(Math.random() * chunk.size);
         const height = chunk.heightmap[x][z];
-        const biome = chunk.biomes[0]; // Use first biome as simplified reference
+        const biome = chunk.biomes[x][z]; // Use biome at specific location
 
         // Check height range
         const [minHeight, maxHeight] = featureConfig.height_range;
@@ -454,7 +454,7 @@ export class TerrainGenerator {
             y: height,
             z: worldZ,
             properties: {
-              biome: biome.type,
+              biome: biome.name,
               size: Math.random() * 10 + 5,
               variant: Math.floor(Math.random() * 3)
             }
