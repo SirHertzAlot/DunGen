@@ -25,7 +25,7 @@ export default function WorldViewer() {
   const loadTerrainChunks = async (scene: any, THREE: any) => {
     const chunkSize = 32;
     const terrainScale = 2.0;
-    const heightScale = 15;
+    const heightScale = 0.8; // Reduced to handle much larger height values from enhanced generation
     
     // Load multiple terrain chunks in a 3x3 grid for simplicity
     for (let x = -1; x <= 1; x++) {

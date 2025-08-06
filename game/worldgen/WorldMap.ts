@@ -62,36 +62,36 @@ export class WorldMap {
 
     if (mountainRange > 0.7 || elevation > 0.75) {
       biomeType = 'mountain';
-      heightScale = 30;
-      noiseScale = 0.05;
+      heightScale = 80; // Massive mountain ranges
+      noiseScale = 0.03; // Lower frequency for larger features
     } else if (elevation < 0.2) {
       if (moisture > 0.6) {
         biomeType = temperature > 0.4 ? 'swamp' : 'bog';
-        heightScale = 2;
-        noiseScale = 0.2;
+        heightScale = 3; // Subtle wetland variation
+        noiseScale = 0.25;
       } else {
         biomeType = 'marsh';
-        heightScale = 1;
+        heightScale = 2; // Small marsh features
         noiseScale = 0.3;
       }
     } else if (elevation > 0.6) {
       if (moisture < 0.3) {
         biomeType = 'desert';
-        heightScale = 8;
-        noiseScale = 0.08;
+        heightScale = 15; // Larger desert dunes and rocky outcrops
+        noiseScale = 0.06;
       } else if (moisture > 0.7) {
         biomeType = 'forest';
-        heightScale = 12;
-        noiseScale = 0.12;
+        heightScale = 20; // Rolling forested hills
+        noiseScale = 0.1;
       }
     } else if (temperature < 0.3) {
       biomeType = 'tundra';
-      heightScale = 6;
-      noiseScale = 0.15;
+      heightScale = 12; // Larger tundra features
+      noiseScale = 0.12;
     } else if (moisture > 0.6) {
       biomeType = 'forest';
-      heightScale = 10;
-      noiseScale = 0.1;
+      heightScale = 18; // Varied forest terrain
+      noiseScale = 0.08;
     }
 
     return {
@@ -121,25 +121,67 @@ export class WorldMap {
         const worldX = chunkX * chunkSize + x;
         const worldZ = chunkZ * chunkSize + z;
         
-        // Multi-octave noise for varied terrain
+        // Enhanced multi-octave noise with progressive smoothing for realistic large-scale terrain
         let height = 0;
-        let amplitude = 1;
-        let frequency = biome.noiseScale;
+        let amplitude = 1.0;
+        let frequency = biome.noiseScale * 0.3; // Start with larger-scale features
+        const persistence = 0.65; // How much each octave contributes (higher = more detail retention)
+        const lacunarity = 2.1; // How much frequency increases each octave
+        const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
         
-        // Base terrain
-        height += this.elevationNoise(worldX * frequency, worldZ * frequency) * amplitude;
+        // Octave 1: Continental/regional structure (massive mountains, deep valleys)
+        height += this.elevationNoise(worldX * frequency, worldZ * frequency) * amplitude * 100;
+        amplitude *= persistence;
+        frequency *= lacunarity;
         
-        // Add detail layers
-        amplitude *= 0.5;
-        frequency *= 2;
-        height += this.detailNoise(worldX * frequency, worldZ * frequency) * amplitude;
+        // Octave 2: Large terrain features (mountain ranges, large valleys)
+        height += this.mountainRangeNoise(worldX * frequency, worldZ * frequency) * amplitude * 60;
+        amplitude *= persistence;
+        frequency *= lacunarity;
         
-        amplitude *= 0.5;
-        frequency *= 2;
-        height += this.detailNoise(worldX * frequency * 1.3, worldZ * frequency * 0.7) * amplitude;
-
-        // Apply biome-specific height scaling
-        height = height * biome.heightScale + biome.elevation * 10;
+        // Octave 3: Local mountain systems and hills
+        height += this.elevationNoise(worldX * frequency + chunkSeed, worldZ * frequency + chunkSeed) * amplitude * 35;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+        
+        // Octave 4: Ridges and local terrain variation
+        height += this.detailNoise(worldX * frequency, worldZ * frequency) * amplitude * 20;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+        
+        // Octave 5: Surface variation and local features
+        height += this.detailNoise(worldX * frequency * 1.3, worldZ * frequency * 0.8) * amplitude * 12;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+        
+        // Octave 6: Fine surface detail
+        height += this.temperatureNoise(worldX * frequency, worldZ * frequency) * amplitude * 6;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+        
+        // Octave 7: Micro surface roughness
+        height += this.moistureNoise(worldX * frequency, worldZ * frequency) * amplitude * 3;
+        
+        // Apply terrain-type specific scaling
+        const continentalShape = this.elevationNoise(worldX * 0.0002, worldZ * 0.0002);
+        
+        // Scale mountains to be properly massive
+        if (biome.type === 'mountain' || continentalShape > 0.4) {
+          const mountainFactor = Math.pow(Math.max(0, continentalShape), 2);
+          height += mountainFactor * 200; // Massive mountains
+        }
+        
+        // Create dramatic valleys
+        if (continentalShape < -0.3) {
+          const valleyFactor = Math.pow(Math.abs(continentalShape), 1.8);
+          height -= valleyFactor * 80; // Deep valleys
+        }
+        
+        // Progressive smoothing for realistic terrain
+        height = this.applySmoothingFilter(height, worldX, worldZ, biome);
+        
+        // Apply biome-specific base height and scaling
+        height = height + biome.elevation * 15 + (biome.heightScale * 2);
 
         // Edge blending for seamless transitions
         const edgeBlendFactor = 0.1; // 10% of chunk size for blending
@@ -203,17 +245,73 @@ export class WorldMap {
     const worldX = chunkX * 64 + localX;
     const worldZ = chunkZ * 64 + localZ;
     
-    // Generate height using the same algorithm
+    // Generate height using same enhanced algorithm for consistency
     let height = 0;
-    let amplitude = 1;
-    let frequency = biome.noiseScale;
+    let amplitude = 1.0;
+    let frequency = biome.noiseScale * 0.3;
+    const persistence = 0.65;
+    const lacunarity = 2.1;
+    const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
     
-    height += this.elevationNoise(worldX * frequency, worldZ * frequency) * amplitude;
-    amplitude *= 0.5;
-    frequency *= 2;
-    height += this.detailNoise(worldX * frequency, worldZ * frequency) * amplitude;
+    // Apply same octave pattern as main generation
+    height += this.elevationNoise(worldX * frequency, worldZ * frequency) * amplitude * 100;
+    amplitude *= persistence;
+    frequency *= lacunarity;
     
-    return height * biome.heightScale + biome.elevation * 10;
+    height += this.mountainRangeNoise(worldX * frequency, worldZ * frequency) * amplitude * 60;
+    amplitude *= persistence;
+    frequency *= lacunarity;
+    
+    height += this.elevationNoise(worldX * frequency + chunkSeed, worldZ * frequency + chunkSeed) * amplitude * 35;
+    
+    // Apply terrain scaling
+    const continentalShape = this.elevationNoise(worldX * 0.0002, worldZ * 0.0002);
+    if (biome.type === 'mountain' || continentalShape > 0.4) {
+      height += Math.pow(Math.max(0, continentalShape), 2) * 200;
+    }
+    
+    return height + biome.elevation * 15 + (biome.heightScale * 2);
+  }
+
+  private hashChunkCoords(x: number, z: number): number {
+    // Simple hash function for chunk coordinates to ensure unique seeds per chunk
+    let hash = 0;
+    const str = `${x},${z}`;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  }
+  
+  private applySmoothingFilter(height: number, worldX: number, worldZ: number, biome: BiomeType): number {
+    // Apply progressive smoothing based on terrain type for realistic results
+    const smoothingStrength = 0.15;
+    
+    // Sample nearby points for smoothing (simplified neighborhood sampling)
+    const sampleRadius = 2;
+    let smoothedHeight = height;
+    let sampleCount = 1;
+    
+    for (let dx = -sampleRadius; dx <= sampleRadius; dx += sampleRadius) {
+      for (let dz = -sampleRadius; dz <= sampleRadius; dz += sampleRadius) {
+        if (dx === 0 && dz === 0) continue;
+        
+        const sampleX = worldX + dx;
+        const sampleZ = worldZ + dz;
+        
+        // Sample basic elevation at nearby points
+        const nearbyHeight = this.elevationNoise(sampleX * biome.noiseScale, sampleZ * biome.noiseScale) * biome.heightScale;
+        smoothedHeight += nearbyHeight;
+        sampleCount++;
+      }
+    }
+    
+    const avgNearby = smoothedHeight / sampleCount;
+    
+    // Blend original height with smoothed version
+    return height * (1 - smoothingStrength) + avgNearby * smoothingStrength;
   }
 
   public getBiomeForChunk(chunkX: number, chunkZ: number): BiomeType {
