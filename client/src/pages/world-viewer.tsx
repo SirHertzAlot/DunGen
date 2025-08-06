@@ -21,6 +21,90 @@ export default function WorldViewer() {
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
 
+  // Load terrain chunks from procedural generation
+  const loadTerrainChunks = async (scene: any, THREE: any) => {
+    const chunkSize = 64;
+    const terrainScale = 0.5;
+    const heightScale = 10;
+    
+    // Load multiple terrain chunks in a 5x5 grid
+    for (let x = -2; x <= 2; x++) {
+      for (let z = -2; z <= 2; z++) {
+        try {
+          const response = await fetch(`/api/worldgen/chunk/${x}/${z}`);
+          const data = await response.json();
+          
+          if (data.success && data.data.heightmap) {
+            const heightmap = data.data.heightmap;
+            const biomes = data.data.biomes || [];
+            
+            // Create terrain geometry from heightmap
+            const geometry = new THREE.PlaneGeometry(
+              chunkSize * terrainScale, 
+              chunkSize * terrainScale, 
+              chunkSize - 1, 
+              chunkSize - 1
+            );
+            
+            // Apply heightmap to vertices
+            const vertices = geometry.attributes.position.array;
+            for (let i = 0; i < heightmap.length; i++) {
+              const row = Math.floor(i / chunkSize);
+              const col = i % chunkSize;
+              const vertexIndex = (row * chunkSize + col) * 3 + 2; // Z coordinate
+              vertices[vertexIndex] = heightmap[i] * heightScale;
+            }
+            
+            // Update geometry
+            geometry.attributes.position.needsUpdate = true;
+            geometry.computeVertexNormals();
+            
+            // Create material based on biome
+            const biome = biomes[0] || { type: 'grassland' };
+            let color = 0x228B22; // Default green
+            
+            switch (biome.type) {
+              case 'desert': color = 0xF4E4BC; break;
+              case 'forest': color = 0x0F5132; break;
+              case 'mountain': color = 0x8B7355; break;
+              case 'tundra': color = 0xE6E6FA; break;
+              case 'swamp': color = 0x556B2F; break;
+              default: color = 0x228B22; break;
+            }
+            
+            const material = new THREE.MeshLambertMaterial({ 
+              color,
+              wireframe: false
+            });
+            
+            const terrainMesh = new THREE.Mesh(geometry, material);
+            terrainMesh.rotation.x = -Math.PI / 2;
+            terrainMesh.position.set(
+              x * chunkSize * terrainScale, 
+              0, 
+              z * chunkSize * terrainScale
+            );
+            terrainMesh.receiveShadow = true;
+            
+            scene.add(terrainMesh);
+            
+            console.log(`Loaded terrain chunk (${x}, ${z}) with biome: ${biome.type}`);
+            
+          } else {
+            console.warn(`Failed to load terrain chunk (${x}, ${z}):`, data.error);
+          }
+        } catch (error) {
+          console.error(`Error loading terrain chunk (${x}, ${z}):`, error);
+        }
+      }
+    }
+    
+    // Add grid helper for reference
+    const gridHelper = new THREE.GridHelper(300, 50, 0x333333, 0x333333);
+    gridHelper.position.y = 0.1; // Slightly above terrain
+    scene.add(gridHelper);
+  };
+
   // Initialize Three.js scene
   useEffect(() => {
     const initThreeJS = async () => {
@@ -67,21 +151,8 @@ export default function WorldViewer() {
         directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
 
-        // Ground plane (D&D battle grid)
-        const gridSize = 100;
-        const gridHelper = new THREE.GridHelper(gridSize, gridSize, 0x333333, 0x333333);
-        scene.add(gridHelper);
-
-        const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize);
-        const groundMaterial = new THREE.MeshLambertMaterial({ 
-          color: 0x228B22,
-          transparent: true,
-          opacity: 0.8 
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+        // Load procedural terrain chunks
+        await loadTerrainChunks(scene, THREE);
 
         // Controls for camera movement
         const controls = new (await import('three/examples/jsm/controls/OrbitControls.js')).OrbitControls(camera, renderer.domElement);
