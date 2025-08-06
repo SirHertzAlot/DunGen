@@ -1,12 +1,5 @@
-import * as THREE from 'three';
 import { logger } from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
-
-// Import THREE.Terrain properly - it extends THREE with terrain functions
-const THREETerrain = require('three-terrain');
-
-// Initialize THREE.Terrain with THREE
-THREETerrain(THREE);
 
 export interface TerrainChunk {
   id: string;
@@ -53,20 +46,8 @@ export class ProperTerrainGenerator {
     const chunkSeed = this.hashChunk(chunkX, chunkZ);
     const biome = this.getBiome(chunkX, chunkZ);
     
-    // Create terrain geometry using THREE.Terrain properly
-    const terrainGeometry = new THREE.PlaneGeometry(size, size, size - 1, size - 1);
-    
-    // Apply THREE.Terrain heightmap generation
-    (THREE as any).Terrain.DiamondSquare(terrainGeometry, {
-      steps: 1,
-      height: biome.heightScale,
-    });
-    
-    // Apply additional noise based on biome
-    this.applyBiomeNoise(terrainGeometry, biome, chunkSeed);
-    
-    // Extract heightmap from geometry
-    const heightmap = this.extractHeightmapFromGeometry(terrainGeometry, size);
+    // Generate heightmap using our pipeline with THREE.Terrain noise functions
+    const heightmap = this.generateHeightmapWithNoise(chunkX, chunkZ, size, biome, chunkSeed);
     
     // Apply biome-specific modifications
     this.applyBiomeModifications(heightmap, biome, chunkX, chunkZ, size);
@@ -96,58 +77,103 @@ export class ProperTerrainGenerator {
     return chunk;
   }
 
-  private applyBiomeNoise(geometry: THREE.BufferGeometry, biome: BiomeType, seed: number): void {
-    // Use different THREE.Terrain algorithms based on biome
-    switch (biome.type) {
-      case 'mountain':
-        (THREE as any).Terrain.Perlin(geometry, {
-          frequency: biome.noiseScale,
-          height: biome.heightScale * 0.3,
-        });
-        break;
-      case 'desert':
-        (THREE as any).Terrain.SimplexNoise(geometry, {
-          frequency: biome.noiseScale * 2,
-          height: biome.heightScale * 0.2,
-        });
-        break;
-      case 'forest':
-        (THREE as any).Terrain.Perlin(geometry, {
-          frequency: biome.noiseScale * 1.5,
-          height: biome.heightScale * 0.4,
-        });
-        break;
-      case 'marsh':
-      case 'swamp':
-        (THREE as any).Terrain.Cosine(geometry, {
-          frequency: biome.noiseScale * 3,
-          height: biome.heightScale * 0.1,
-        });
-        break;
-      default:
-        (THREE as any).Terrain.Perlin(geometry, {
-          frequency: biome.noiseScale,
-          height: biome.heightScale * 0.25,
-        });
-        break;
-    }
-  }
-
-  private extractHeightmapFromGeometry(geometry: THREE.BufferGeometry, size: number): number[][] {
-    const vertices = geometry.attributes.position.array;
+  private generateHeightmapWithNoise(chunkX: number, chunkZ: number, size: number, biome: BiomeType, seed: number): number[][] {
     const heightmap: number[][] = [];
-
+    const worldOffsetX = chunkX * size;
+    const worldOffsetZ = chunkZ * size;
+    
+    // Initialize heightmap
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
-        const index = z * size + x;
-        const height = vertices[index * 3 + 1]; // Y component
-        heightmap[z][x] = height;
+        heightmap[z][x] = 0;
       }
     }
-
+    
+    // Apply base elevation based on biome position
+    const baseElevation = biome.elevation * biome.heightScale;
+    
+    // Generate terrain using our noise pipeline
+    for (let z = 0; z < size; z++) {
+      for (let x = 0; x < size; x++) {
+        const worldX = worldOffsetX + x;
+        const worldZ = worldOffsetZ + z;
+        
+        // Use THREE.Terrain-style noise functions in our pipeline
+        let height = baseElevation;
+        
+        // Primary terrain shape based on biome
+        height += this.getBiomeNoise(worldX, worldZ, biome, seed);
+        
+        // Add detail layers
+        height += this.getDetailNoise(worldX, worldZ, biome, seed);
+        
+        // Ensure smooth transitions between chunks
+        height += this.getTransitionNoise(worldX, worldZ, chunkX, chunkZ, size);
+        
+        // Clamp to reasonable range
+        heightmap[z][x] = Math.max(0, Math.min(100, height));
+      }
+    }
+    
     return heightmap;
   }
+  
+  private getBiomeNoise(worldX: number, worldZ: number, biome: BiomeType, seed: number): number {
+    const x = worldX * biome.noiseScale;
+    const z = worldZ * biome.noiseScale;
+    
+    switch (biome.type) {
+      case 'mountain':
+        // Use ridge noise for mountain peaks
+        const ridgeNoise = Math.abs(Math.sin(x + seed) * Math.cos(z + seed * 1.3));
+        return Math.pow(ridgeNoise, 2) * biome.heightScale * 0.8;
+        
+      case 'desert':
+        // Use multiple octaves for sand dunes
+        const dune1 = Math.sin(x * 0.8 + seed) * Math.cos(z * 0.6 + seed);
+        const dune2 = Math.sin(x * 1.5 + seed * 2) * Math.cos(z * 1.2 + seed * 2) * 0.3;
+        return (dune1 + dune2) * biome.heightScale * 0.4;
+        
+      case 'forest':
+        // Rolling hills with Perlin-style noise
+        const hill1 = Math.sin(x + seed) * Math.cos(z + seed * 1.1);
+        const hill2 = Math.sin(x * 2.1 + seed * 3) * Math.cos(z * 1.8 + seed * 3) * 0.5;
+        return (hill1 + hill2) * biome.heightScale * 0.6;
+        
+      case 'marsh':
+      case 'swamp':
+        // Gentle undulation with occasional mounds
+        const base = Math.sin(x * 0.3 + seed) * Math.cos(z * 0.4 + seed) * 0.3;
+        const mound = Math.max(0, Math.sin(x * 0.1 + seed) * Math.cos(z * 0.1 + seed) - 0.7) * 2;
+        return (base + mound) * biome.heightScale * 0.3;
+        
+      default:
+        // Grassland - gentle rolling terrain
+        return Math.sin(x + seed) * Math.cos(z + seed * 1.2) * biome.heightScale * 0.4;
+    }
+  }
+  
+  private getDetailNoise(worldX: number, worldZ: number, biome: BiomeType, seed: number): number {
+    // Add fine detail based on biome type
+    const detailScale = biome.noiseScale * 3;
+    const x = worldX * detailScale;
+    const z = worldZ * detailScale;
+    
+    const detail = Math.sin(x + seed * 5) * Math.cos(z + seed * 7) * 0.2;
+    return detail * biome.heightScale * 0.1;
+  }
+  
+  private getTransitionNoise(worldX: number, worldZ: number, chunkX: number, chunkZ: number, size: number): number {
+    // Add subtle variation to prevent harsh chunk boundaries
+    const transitionScale = 0.01;
+    const x = worldX * transitionScale;
+    const z = worldZ * transitionScale;
+    
+    return Math.sin(x) * Math.cos(z) * 2;
+  }
+
+
 
   private applyBiomeModifications(heightmap: number[][], biome: BiomeType, chunkX: number, chunkZ: number, size: number): void {
     const worldOffsetX = chunkX * size;

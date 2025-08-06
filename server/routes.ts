@@ -930,8 +930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
-      const terrainGenerator = ProperTerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
@@ -977,8 +977,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const requestId = uuidv4();
     
     try {
-      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
-      const terrainGenerator = ProperTerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const minX = parseInt(req.params.minX);
       const minZ = parseInt(req.params.minZ);
@@ -1045,8 +1045,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const sharp = (await import('sharp')).default;
-      const { ProperTerrainGenerator } = await import('../game/worldgen/ProperTerrainGenerator');
-      const terrainGenerator = ProperTerrainGenerator.getInstance();
+      const { SimpleTerrain } = await import('../game/worldgen/SimpleTerrain');
+      const terrainGenerator = SimpleTerrain.getInstance();
       
       const chunkX = parseInt(req.params.x);
       const chunkZ = parseInt(req.params.z);
