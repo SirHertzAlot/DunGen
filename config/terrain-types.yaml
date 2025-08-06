@@ -1,0 +1,190 @@
+terrain_types:
+  mountain:
+    name: "Mountain Terrain"
+    description: "Jagged peaks and steep ridges"
+    height_range: [35, 80]
+    noise_algorithms:
+      - type: "ridged_noise"
+        frequency: 0.008
+        amplitude_factor: 0.6
+        octaves: 3
+        ridged: true
+      - type: "fractal_noise" 
+        frequency: 0.02
+        amplitude_factor: 0.4
+        octaves: 2
+        power: 1.5
+      - type: "detail_noise"
+        frequency: 0.05
+        amplitude_factor: 0.3
+        octaves: 1
+        power: 2.0
+    biome_conditions:
+      elevation_min: 0.65
+      temperature_range: [-1, 0.4]
+      moisture_range: [0.2, 0.8]
+    features:
+      - peaks
+      - cliffs
+      - valleys
+
+  desert:
+    name: "Desert Dunes"
+    description: "Rolling sand dunes and rocky outcrops"
+    height_range: [8, 25]
+    noise_algorithms:
+      - type: "dune_noise"
+        frequency: 0.012
+        amplitude_factor: 0.7
+        octaves: 2
+        power: 1.5
+      - type: "ripple_noise"
+        frequency: 0.025
+        amplitude_factor: 0.3
+        octaves: 1
+      - type: "fine_sand"
+        frequency: 0.15
+        amplitude_factor: 0.1
+        octaves: 1
+    biome_conditions:
+      temperature_min: 0.6
+      moisture_max: 0.4
+      elevation_range: [0.3, 0.7]
+    features:
+      - dunes
+      - oases
+      - rock_formations
+
+  forest:
+    name: "Dense Forest"
+    description: "Rolling hills covered in thick vegetation"
+    height_range: [15, 40]
+    noise_algorithms:
+      - type: "rolling_hills"
+        frequency: 0.01
+        amplitude_factor: 0.6
+        octaves: 3
+      - type: "tree_variation"
+        frequency: 0.03
+        amplitude_factor: 0.4
+        octaves: 2
+      - type: "root_system"
+        frequency: 0.08
+        amplitude_factor: 0.2
+        octaves: 1
+    biome_conditions:
+      moisture_min: 0.55
+      temperature_min: 0.35
+      elevation_range: [0.4, 0.8]
+    features:
+      - clearings
+      - streams
+      - dense_canopy
+
+  swamp:
+    name: "Wetland Swamp"
+    description: "Flat marshland with occasional mounds"
+    height_range: [2, 12]
+    noise_algorithms:
+      - type: "flat_base"
+        frequency: 0.006
+        amplitude_factor: 0.3
+        octaves: 1
+      - type: "mound_spots"
+        frequency: 0.04
+        amplitude_factor: 0.5
+        octaves: 1
+        threshold: 0.3
+      - type: "bog_detail"
+        frequency: 0.2
+        amplitude_factor: 0.1
+        octaves: 1
+    biome_conditions:
+      elevation_max: 0.35
+      moisture_min: 0.5
+    features:
+      - water_pools
+      - mud_flats
+      - vegetation_mounds
+
+  tundra:
+    name: "Arctic Tundra"
+    description: "Windswept frozen terrain"
+    height_range: [5, 20]
+    noise_algorithms:
+      - type: "windswept"
+        frequency: 0.008
+        amplitude_factor: 0.5
+        octaves: 2
+      - type: "permafrost_bumps"
+        frequency: 0.04
+        amplitude_factor: 0.3
+        octaves: 1
+        absolute: true
+      - type: "ice_detail"
+        frequency: 0.12
+        amplitude_factor: 0.2
+        octaves: 1
+    biome_conditions:
+      temperature_max: 0.35
+    features:
+      - permafrost
+      - ice_patches
+      - sparse_vegetation
+
+  marsh:
+    name: "Boggy Marsh"
+    description: "Uneven wetland with grass tufts"
+    height_range: [3, 15]
+    noise_algorithms:
+      - type: "bog_base"
+        frequency: 0.015
+        amplitude_factor: 0.4
+        octaves: 2
+      - type: "water_channels"
+        frequency: 0.06
+        amplitude_factor: 0.6
+        octaves: 1
+        threshold: 0.2
+      - type: "grass_tufts"
+        frequency: 0.25
+        amplitude_factor: 0.15
+        octaves: 1
+    biome_conditions:
+      elevation_max: 0.45
+      moisture_min: 0.35
+    features:
+      - channels
+      - reed_beds
+      - muddy_patches
+
+  grassland:
+    name: "Rolling Plains"
+    description: "Gentle hills and open meadows"
+    height_range: [10, 30]
+    noise_algorithms:
+      - type: "gentle_hills"
+        frequency: 0.01
+        amplitude_factor: 0.6
+        octaves: 3
+      - type: "meadow_variation"
+        frequency: 0.025
+        amplitude_factor: 0.3
+        octaves: 2
+      - type: "grass_detail"
+        frequency: 0.1
+        amplitude_factor: 0.1
+        octaves: 1
+    biome_conditions:
+      default: true
+    features:
+      - meadows
+      - gentle_slopes
+      - scattered_trees
+
+generation_parameters:
+  chunk_variation_strength: 0.3
+  transition_smoothing: 0.2
+  edge_blending_distance: 8
+  feature_spawn_chance: 0.15
+  unique_seed_multipliers: [73, 137, 241, 359, 467]
