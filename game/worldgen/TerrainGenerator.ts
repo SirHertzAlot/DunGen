@@ -553,40 +553,38 @@ export class TerrainGenerator {
   }
 
   private async applyMassiveMountainTerrain(chunk: TerrainChunk): Promise<void> {
-    const mountainConfig = this.terrainConfig.terrain_types.mountain;
-    if (!mountainConfig) return;
-
-    const heightScale = mountainConfig.height_range[1] - mountainConfig.height_range[0];
-    const baseHeight = mountainConfig.height_range[0];
-
-    for (let x = 0; x < chunk.size; x++) {
-      for (let z = 0; z < chunk.size; z++) {
-        const worldX = chunk.x * chunk.size + x;
-        const worldZ = chunk.z * chunk.size + z;
-
-        let totalHeight = 0;
-        let totalWeight = 0;
-
-        // Apply each massive mountain algorithm
-        for (const algorithm of mountainConfig.noise_algorithms) {
-          const noiseValue = this.noiseEngine.applyNoiseAlgorithm(
-            algorithm,
-            worldX,
-            worldZ,
-            0, // seedOffset
-            heightScale
-          );
-
-          const weight = algorithm.amplitude_factor || 1.0;
-          totalHeight += noiseValue * weight;
-          totalWeight += weight;
-        }
-
-        // Normalize and apply to heightmap
-        const normalizedHeight = totalWeight > 0 ? totalHeight / totalWeight : 0;
-        const finalHeight = baseHeight + (normalizedHeight * heightScale);
-        
-        chunk.heightmap[x][z] = Math.max(0, finalHeight);
+    // Use three-terrain library to generate massive mountain terrain
+    const chunkSeed = this.hashChunkCoords(chunk.x, chunk.z);
+    
+    // Create geometry for mountain generation using three-terrain
+    const geometry = new THREE.PlaneGeometry(chunk.size, chunk.size, chunk.size - 1, chunk.size - 1);
+    
+    // Apply three-terrain mountain generation algorithms
+    // Use mountain_ridges algorithm for massive mountain ranges
+    Terrain.Mountain(geometry, {
+      seed: chunkSeed,
+      frequency: 0.005, // Lower frequency for massive features
+      maxHeight: 200,   // Massive mountain heights
+      minHeight: 0,
+      stretch: true
+    });
+    
+    // Apply alpine peaks on top for variety
+    Terrain.DiamondSquare(geometry, {
+      seed: chunkSeed + 1,
+      frequency: 0.01,
+      maxHeight: 150,
+      minHeight: 0
+    });
+    
+    // Extract heightmap from the generated geometry
+    const vertices = geometry.attributes.position.array;
+    
+    for (let z = 0; z < chunk.size; z++) {
+      for (let x = 0; x < chunk.size; x++) {
+        const index = z * chunk.size + x;
+        const height = vertices[index * 3 + 1]; // Y component from three.js geometry
+        chunk.heightmap[x][z] = Math.max(0, height);
       }
     }
   }
