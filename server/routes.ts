@@ -1039,11 +1039,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Heightmap image endpoint for visualization
+  // Heightmap PNG image endpoint for visualization
   app.get('/api/worldgen/heightmap/:x/:z', async (req, res) => {
     const requestId = uuidv4();
     
     try {
+      const sharp = (await import('sharp')).default;
       const { TerrainGenerator } = await import('../game/worldgen/TerrainGenerator');
       const terrainGenerator = TerrainGenerator.getInstance();
       
@@ -1059,7 +1060,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
       
-      // Convert heightmap to grayscale PNG
+      // Convert heightmap to grayscale PNG using Sharp
       const size = chunk.size;
       let heightmap = chunk.heightmap;
       
@@ -1068,44 +1069,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         heightmap = (heightmap as number[][]).flat();
       }
       
-      // Ensure we have the right number of values
-      if ((heightmap as number[]).length !== size * size) {
-        logger.warn('Heightmap size mismatch for image generation', {
-          service: 'API',
-          expected: size * size,
-          actual: (heightmap as number[]).length
-        });
-      }
+      const heights = heightmap as number[];
       
       // Find min/max for normalization
-      const heights = heightmap as number[];
       const minHeight = Math.min(...heights);
       const maxHeight = Math.max(...heights);
       const heightRange = maxHeight - minHeight || 1;
       
-      // Generate PNG image data
-      const imageData: number[] = [];
+      // Create grayscale buffer for Sharp
+      const imageBuffer = Buffer.alloc(size * size);
       for (let i = 0; i < heights.length; i++) {
         const normalizedHeight = (heights[i] - minHeight) / heightRange;
         const gray = Math.floor(normalizedHeight * 255);
-        imageData.push(gray, gray, gray, 255); // RGBA
+        imageBuffer[i] = gray;
       }
       
-      // Simple PNG generation (for demo purposes)
-      const pngHeader = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]); // PNG signature
-      
-      // For now, return grayscale values as JSON for the frontend to render
-      res.json({
-        success: true,
-        data: {
+      // Generate PNG using Sharp
+      const pngBuffer = await sharp(imageBuffer, {
+        raw: {
           width: size,
           height: size,
-          minHeight,
-          maxHeight,
-          heightRange,
-          grayscaleData: heights.map(h => Math.floor(((h - minHeight) / heightRange) * 255))
+          channels: 1
         }
+      })
+      .png()
+      .toBuffer();
+
+      logger.info('Generated heightmap PNG', {
+        service: 'API',
+        requestId,
+        chunkId: chunk.id,
+        position: [chunkX, chunkZ],
+        size: size,
+        minHeight,
+        maxHeight,
+        heightRange,
+        bufferSize: pngBuffer.length
       });
+
+      // Return actual PNG image
+      res.set({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'no-cache',
+        'Content-Length': pngBuffer.length
+      });
+      res.send(pngBuffer);
 
     } catch (error) {
       logger.error('Failed to generate heightmap image via API', error as Error, {

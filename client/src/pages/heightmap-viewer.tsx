@@ -1,78 +1,66 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-interface HeightmapData {
-  width: number;
-  height: number;
-  minHeight: number;
-  maxHeight: number;
-  heightRange: number;
-  grayscaleData: number[];
-}
-
 interface HeightmapVisualizerProps {
   chunkX: number;
   chunkZ: number;
 }
 
 function HeightmapVisualizer({ chunkX, chunkZ }: HeightmapVisualizerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [imageData, setImageData] = useState<{ 
+    src: string;
+    minHeight: number;
+    maxHeight: number;
+    size: number;
+  } | null>(null);
   
-  const { data, isLoading, error } = useQuery({
+  const { isLoading, error } = useQuery({
     queryKey: [`/api/worldgen/heightmap/${chunkX}/${chunkZ}`],
     queryFn: async () => {
+      // Fetch the PNG image directly
       const response = await fetch(`/api/worldgen/heightmap/${chunkX}/${chunkZ}`);
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error);
+      if (!response.ok) {
+        throw new Error(`Failed to load heightmap: ${response.statusText}`);
       }
-      return result.data as HeightmapData;
+      
+      // Get chunk metadata separately for display info
+      const chunkResponse = await fetch(`/api/worldgen/chunk/${chunkX}/${chunkZ}`);
+      const chunkResult = await chunkResponse.json();
+      
+      if (!chunkResult.success) {
+        throw new Error(chunkResult.error);
+      }
+      
+      const chunk = chunkResult.data;
+      const heights = Array.isArray(chunk.heightmap[0]) 
+        ? chunk.heightmap.flat() 
+        : chunk.heightmap;
+      const minHeight = Math.min(...heights);
+      const maxHeight = Math.max(...heights);
+      
+      // Convert response to blob and create object URL
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      
+      setImageData({
+        src: imageUrl,
+        minHeight,
+        maxHeight,
+        size: chunk.size
+      });
+      
+      return { imageUrl, minHeight, maxHeight, size: chunk.size };
     }
   });
 
+  // Cleanup object URL when component unmounts or data changes
   useEffect(() => {
-    if (!data || !canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Ensure we have valid dimensions with defaults
-    const width = Math.max(1, Math.floor(data.width || 64));
-    const height = Math.max(1, Math.floor(data.height || 64));
-    
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      console.error('Invalid canvas dimensions:', width, height);
-      return;
-    }
-    
-    try {
-      // Create ImageData for the heightmap
-      const imageData = ctx.createImageData(width, height);
-      
-      // Ensure we have grayscale data
-      const grayscaleData = data.grayscaleData || [];
-      
-      // Fill the image data with grayscale values
-      for (let i = 0; i < grayscaleData.length && i < width * height; i++) {
-        const grayscaleValue = Math.max(0, Math.min(255, Math.floor(grayscaleData[i] || 128)));
-        const pixelIndex = i * 4;
-        
-        // Set RGB to grayscale value (white = high, black = low)
-        imageData.data[pixelIndex] = grayscaleValue;     // Red
-        imageData.data[pixelIndex + 1] = grayscaleValue; // Green
-        imageData.data[pixelIndex + 2] = grayscaleValue; // Blue
-        imageData.data[pixelIndex + 3] = 255;            // Alpha
+    return () => {
+      if (imageData?.src) {
+        URL.revokeObjectURL(imageData.src);
       }
-      
-      // Draw the heightmap to canvas
-      ctx.putImageData(imageData, 0, 0);
-      
-    } catch (error) {
-      console.error('Canvas rendering error:', error);
-    }
-    
-  }, [data]);
+    };
+  }, [imageData]);
 
   if (isLoading) {
     return (
@@ -87,25 +75,25 @@ function HeightmapVisualizer({ chunkX, chunkZ }: HeightmapVisualizerProps) {
     return (
       <div className="bg-red-900 p-4 rounded">
         <div className="text-red-300 text-sm">Error loading chunk ({chunkX}, {chunkZ})</div>
+        <div className="text-red-400 text-xs mt-1">{error instanceof Error ? error.message : 'Unknown error'}</div>
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!imageData) return null;
 
   return (
     <div className="bg-gray-700 p-4 rounded">
-      <canvas 
-        ref={canvasRef}
-        width={data.width}
-        height={data.height}
-        className="w-full h-32 border border-gray-600 rounded image-rendering-pixelated"
+      <img 
+        src={imageData.src}
+        alt={`Heightmap for chunk (${chunkX}, ${chunkZ})`}
+        className="w-full h-32 border border-gray-600 rounded object-cover"
         style={{ imageRendering: 'pixelated' }}
       />
       <div className="mt-2 text-xs text-gray-400">
         <div>Chunk ({chunkX}, {chunkZ})</div>
-        <div>Range: {data.minHeight.toFixed(1)} - {data.maxHeight.toFixed(1)}</div>
-        <div>Size: {data.width}x{data.height}</div>
+        <div>Range: {imageData.minHeight.toFixed(1)} - {imageData.maxHeight.toFixed(1)}</div>
+        <div>Size: {imageData.size}x{imageData.size}</div>
       </div>
     </div>
   );
