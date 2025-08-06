@@ -12,6 +12,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/world-viewer" component={WorldViewer} />
       <Route path="/world" component={WorldViewer} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
