@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { Swords, Users, Zap, Navigation } from 'lucide-react';
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Swords, Users, Zap, Navigation } from "lucide-react";
 
 // 3D World Viewer for D&D MMORPG
 export default function WorldViewer() {
@@ -17,131 +17,157 @@ export default function WorldViewer() {
   const [entities, setEntities] = useState<any[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [ecsStatus, setEcsStatus] = useState<any>(null);
-  const [characterName, setCharacterName] = useState('');
+  const [characterName, setCharacterName] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
 
   // Load single massive terrain feature - ONE chunk = ONE feature
   const loadTerrainChunks = async (scene: any, THREE: any) => {
-    const baseChunkSize = 64;    // Base geometry size
-    const terrainScale = 4.0;    // Scale up for massive features
-    const heightScale = 2.0;     // Enhanced for dramatic terrain
-    
+    const baseChunkSize = 64; // Base geometry size
+    const terrainScale = 4.0; // Scale up for massive features
+    const heightScale = 2.0; // Enhanced for dramatic terrain
+
     // Load ONE massive chunk at origin that represents the entire terrain feature
     const chunkCoords = [{ x: 0, z: 0 }]; // Single massive feature
-    
+
     for (const coord of chunkCoords) {
       const { x, z } = coord;
       try {
-          const response = await fetch(`/api/worldgen/chunk/${x}/${z}`);
-          const data = await response.json();
-          
-          if (data.success && data.data.heightmap) {
-            const heightmap2D = data.data.heightmap; // This is a 2D array
-            const biomes = data.data.biomes || [];
-            
-            // Create terrain using a simple approach that works
-            const geometry = new THREE.PlaneGeometry(
-              baseChunkSize * terrainScale, 
-              baseChunkSize * terrainScale, 
-              63, 63  // Higher resolution for massive features
+        const response = await fetch(`/api/worldgen/chunk/${x}/${z}`);
+        const data = await response.json();
+
+        if (data.success && data.data.heightmap) {
+          const heightmap2D = data.data.heightmap; // This is a 2D array
+          const biomes = data.data.biomes || [];
+
+          // Create terrain using a simple approach that works
+          const geometry = new THREE.PlaneGeometry(
+            baseChunkSize * terrainScale,
+            baseChunkSize * terrainScale,
+            63,
+            63, // Higher resolution for massive features
+          );
+
+          // Apply actual heightmap data from the new world generation system
+          const vertices = geometry.attributes.position.array;
+          console.log(
+            `Chunk (${x}, ${z}): Heightmap is ${heightmap2D.length}x${heightmap2D[0] ? heightmap2D[0].length : 0}, vertices: ${vertices.length / 3}`,
+          );
+
+          if (
+            heightmap2D &&
+            heightmap2D.length > 0 &&
+            heightmap2D[0] &&
+            heightmap2D[0].length > 0
+          ) {
+            const heightmapRows = heightmap2D.length;
+            const heightmapCols = heightmap2D[0].length;
+            console.log(
+              `Processing ${heightmapRows}x${heightmapCols} heightmap`,
             );
-            
-            // Apply actual heightmap data from the new world generation system
-            const vertices = geometry.attributes.position.array;
-            console.log(`Chunk (${x}, ${z}): Heightmap is ${heightmap2D.length}x${heightmap2D[0] ? heightmap2D[0].length : 0}, vertices: ${vertices.length / 3}`);
-            
-            if (heightmap2D && heightmap2D.length > 0 && heightmap2D[0] && heightmap2D[0].length > 0) {
-              const heightmapRows = heightmap2D.length;
-              const heightmapCols = heightmap2D[0].length;
-              console.log(`Processing ${heightmapRows}x${heightmapCols} heightmap`);
-              
-              // Apply heights to vertices (geometry is 64x64 segments = 4096 vertices)
-              for (let i = 2; i < vertices.length; i += 3) {
-                const vertexIndex = (i - 2) / 3;
-                const row = Math.floor(vertexIndex / 64);
-                const col = vertexIndex % 64;
-                
-                // Scale to heightmap coordinates  
-                const heightRow = Math.floor((row / 63) * (heightmapRows - 1));
-                const heightCol = Math.floor((col / 63) * (heightmapCols - 1));
-                
-                if (heightRow < heightmapRows && heightCol < heightmapCols) {
-                  const height = heightmap2D[heightRow][heightCol];
-                  if (!isNaN(height)) {
-                    vertices[i] = height * heightScale;
-                  } else {
-                    vertices[i] = 0;
-                  }
+
+            // Apply heights to vertices (geometry is 64x64 segments = 4096 vertices)
+            for (let i = 2; i < vertices.length; i += 3) {
+              const vertexIndex = (i - 2) / 3;
+              const row = Math.floor(vertexIndex / 64);
+              const col = vertexIndex % 64;
+
+              // Scale to heightmap coordinates
+              const heightRow = Math.floor((row / 63) * (heightmapRows - 1));
+              const heightCol = Math.floor((col / 63) * (heightmapCols - 1));
+
+              if (heightRow < heightmapRows && heightCol < heightmapCols) {
+                const height = heightmap2D[heightRow][heightCol];
+                if (!isNaN(height)) {
+                  vertices[i] = height * heightScale;
                 } else {
                   vertices[i] = 0;
                 }
-              }
-            } else {
-              // Create realistic procedural terrain as fallback
-              console.log('Using procedural noise for terrain');
-              for (let i = 2; i < vertices.length; i += 3) {
-                const x_pos = vertices[i - 2];
-                const z_pos = vertices[i - 1];
-                const worldX = x_pos + (x * baseChunkSize * terrainScale);
-                const worldZ = z_pos + (z * baseChunkSize * terrainScale);
-                
-                // Multi-octave noise for realistic terrain
-                let height = 0;
-                height += Math.sin(worldX * 0.02) * Math.cos(worldZ * 0.02) * 8;
-                height += Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 4;
-                height += Math.sin(worldX * 0.1) * Math.cos(worldZ * 0.1) * 2;
-                height += Math.sin(worldX * 0.2) * Math.cos(worldZ * 0.15) * 1;
-                
-                vertices[i] = height;
+              } else {
+                vertices[i] = 0;
               }
             }
-            
-            geometry.attributes.position.needsUpdate = true;
-            geometry.computeVertexNormals();
-            
-            // Create material with varied colors
-            const biome = biomes[0] || { type: 'grassland' };
-            let color = 0x228B22;
-            
-            switch (biome.type) {
-              case 'desert': color = 0xF4E4BC; break;
-              case 'forest': color = 0x0F5132; break;
-              case 'mountain': color = 0x8B7355; break;
-              case 'tundra': color = 0xE6E6FA; break;
-              case 'swamp': color = 0x556B2F; break;
-              default: color = 0x228B22; break;
-            }
-            
-            const material = new THREE.MeshLambertMaterial({ 
-              color,
-              wireframe: false
-            });
-            
-            const terrainMesh = new THREE.Mesh(geometry, material);
-            terrainMesh.rotation.x = -Math.PI / 2;
-            terrainMesh.position.set(
-              0, // Single massive feature centered at origin
-              0, 
-              0
-            );
-            terrainMesh.receiveShadow = true;
-            terrainMesh.castShadow = true;
-            
-            scene.add(terrainMesh);
-            
-            console.log(`Loaded terrain chunk (${x}, ${z}) with biome: ${biome.type || 'grassland'}`);
-            
           } else {
-            console.warn(`Failed to load terrain chunk (${x}, ${z}):`, data.error);
+            // Create realistic procedural terrain as fallback
+            console.log("Using procedural noise for terrain");
+            for (let i = 2; i < vertices.length; i += 3) {
+              const x_pos = vertices[i - 2];
+              const z_pos = vertices[i - 1];
+              const worldX = x_pos + x * baseChunkSize * terrainScale;
+              const worldZ = z_pos + z * baseChunkSize * terrainScale;
+
+              // Multi-octave noise for realistic terrain
+              let height = 0;
+              height += Math.sin(worldX * 0.02) * Math.cos(worldZ * 0.02) * 8;
+              height += Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 4;
+              height += Math.sin(worldX * 0.1) * Math.cos(worldZ * 0.1) * 2;
+              height += Math.sin(worldX * 0.2) * Math.cos(worldZ * 0.15) * 1;
+
+              vertices[i] = height;
+            }
           }
-        } catch (error) {
-          console.error(`Error loading terrain chunk (${x}, ${z}):`, error);
+
+          geometry.attributes.position.needsUpdate = true;
+          geometry.computeVertexNormals();
+
+          // Create material with varied colors
+          const biome = biomes[0] || { type: "grassland" };
+          let color = 0x228b22;
+
+          switch (biome.type) {
+            case "desert":
+              color = 0xf4e4bc;
+              break;
+            case "forest":
+              color = 0x0f5132;
+              break;
+            case "mountain":
+              color = 0x8b7355;
+              break;
+            case "tundra":
+              color = 0xe6e6fa;
+              break;
+            case "swamp":
+              color = 0x556b2f;
+              break;
+            default:
+              color = 0x228b22;
+              break;
+          }
+
+          const material = new THREE.MeshLambertMaterial({
+            color,
+            wireframe: false,
+          });
+
+          const terrainMesh = new THREE.Mesh(geometry, material);
+          terrainMesh.rotation.x = -Math.PI / 2;
+          terrainMesh.position.set(
+            0, // Single massive feature centered at origin
+            0,
+            0,
+          );
+          terrainMesh.receiveShadow = true;
+          terrainMesh.castShadow = true;
+
+          scene.add(terrainMesh);
+
+          console.log(
+            `Loaded terrain chunk (${x}, ${z}) with biome: ${biome.type || "grassland"}`,
+          );
+        } else {
+          console.warn(
+            `Failed to load terrain chunk (${x}, ${z}):`,
+            data.error,
+          );
         }
+      } catch (error) {
+        console.error(`Error loading terrain chunk (${x}, ${z}):`, error);
       }
-    
+    }
+
     // Add grid helper for reference
-    const gridHelper = new THREE.GridHelper(200, 40, 0x444444, 0x444444);
+    const gridHelper = new THREE.GridHelper(2000, 40, 0x444444, 0x444444);
     gridHelper.position.y = 0.1;
     scene.add(gridHelper);
   };
@@ -151,13 +177,13 @@ export default function WorldViewer() {
     const initThreeJS = async () => {
       try {
         // Dynamically import Three.js
-        const THREE = await import('three');
-        
+        const THREE = await import("three");
+
         if (!canvasRef.current) return;
 
         // Scene setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.background = new THREE.Color(0x87ceeb); // Sky blue
         sceneRef.current = scene;
 
         // Camera setup
@@ -165,16 +191,16 @@ export default function WorldViewer() {
           75,
           window.innerWidth / window.innerHeight,
           0.1,
-          1000
+          1000,
         );
         camera.position.set(100, 60, 100);
         camera.lookAt(0, 10, 0);
         cameraRef.current = camera;
 
         // Renderer setup
-        const renderer = new THREE.WebGLRenderer({ 
+        const renderer = new THREE.WebGLRenderer({
           canvas: canvasRef.current,
-          antialias: true 
+          antialias: true,
         });
         renderer.setSize(window.innerWidth * 0.7, window.innerHeight * 0.7);
         renderer.shadowMap.enabled = true;
@@ -196,7 +222,9 @@ export default function WorldViewer() {
         await loadTerrainChunks(scene, THREE);
 
         // Controls for camera movement
-        const controls = new (await import('three/examples/jsm/controls/OrbitControls.js')).OrbitControls(camera, renderer.domElement);
+        const controls = new (
+          await import("three/examples/jsm/controls/OrbitControls.js")
+        ).OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
@@ -209,18 +237,17 @@ export default function WorldViewer() {
         animate();
 
         setIsInitialized(true);
-        
+
         toast({
           title: "3D World Initialized",
-          description: "D&D battle grid ready for testing"
+          description: "D&D battle grid ready for testing",
         });
-
       } catch (error) {
-        console.error('Failed to initialize 3D world:', error);
+        console.error("Failed to initialize 3D world:", error);
         toast({
           title: "3D Initialization Failed",
           description: "Could not load Three.js components",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     };
@@ -239,12 +266,12 @@ export default function WorldViewer() {
   useEffect(() => {
     const connectToECS = async () => {
       try {
-        const response = await fetch('/api/ecs/status');
+        const response = await fetch("/api/ecs/status");
         const data = await response.json();
         setEcsStatus(data.data);
         setIsConnected(true);
       } catch (error) {
-        console.error('Failed to connect to ECS:', error);
+        console.error("Failed to connect to ECS:", error);
         setIsConnected(false);
       }
     };
@@ -257,42 +284,40 @@ export default function WorldViewer() {
 
   // Create 3D entity representation
   const createEntityMesh = async (entity: any) => {
-    const THREE = await import('three');
-    
+    const THREE = await import("three");
+
     let geometry, material, mesh;
 
-    if (entity.type === 'PlayerCharacter') {
+    if (entity.type === "PlayerCharacter") {
       // Player character - blue cylinder with nameplate
       geometry = new THREE.CylinderGeometry(1, 1, 3, 8);
-      material = new THREE.MeshLambertMaterial({ color: 0x4169E1 });
+      material = new THREE.MeshLambertMaterial({ color: 0x4169e1 });
       mesh = new THREE.Mesh(geometry, material);
-      
+
       // Add nameplate
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d')!;
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d")!;
       canvas.width = 256;
       canvas.height = 64;
-      context.fillStyle = 'white';
+      context.fillStyle = "white";
       context.fillRect(0, 0, 256, 64);
-      context.fillStyle = 'black';
-      context.font = '20px Arial';
-      context.textAlign = 'center';
-      context.fillText(entity.characterName || 'Player', 128, 35);
-      
+      context.fillStyle = "black";
+      context.font = "20px Arial";
+      context.textAlign = "center";
+      context.fillText(entity.characterName || "Player", 128, 35);
+
       const nameTexture = new THREE.CanvasTexture(canvas);
       const nameMaterial = new THREE.MeshBasicMaterial({ map: nameTexture });
       const nameGeometry = new THREE.PlaneGeometry(4, 1);
       const nameplate = new THREE.Mesh(nameGeometry, nameMaterial);
       nameplate.position.y = 4;
       mesh.add(nameplate);
-      
-    } else if (entity.type === 'NPC') {
+    } else if (entity.type === "NPC") {
       // NPC - red/green cylinder based on faction
       geometry = new THREE.CylinderGeometry(0.8, 0.8, 2.5, 8);
-      const color = entity.faction === 'hostile' ? 0xFF4500 : 0x32CD32;
+      const color = entity.faction === "hostile" ? 0xff4500 : 0x32cd32;
       material = new THREE.MeshLambertMaterial({ color });
       mesh = new THREE.Mesh(geometry, material);
-      
     } else {
       // Generic entity - gray cube
       geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -303,7 +328,7 @@ export default function WorldViewer() {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData = { entityId: entity.id, entityData: entity };
-    
+
     return mesh;
   };
 
@@ -311,12 +336,12 @@ export default function WorldViewer() {
   const updateEntities = async (entitiesData: any[]) => {
     if (!sceneRef.current || !isInitialized) return;
 
-    const THREE = await import('three');
+    const THREE = await import("three");
     const scene = sceneRef.current;
 
     // Remove entities that no longer exist
     entitiesRef.current.forEach((mesh, entityId) => {
-      if (!entitiesData.find(e => e.id === entityId)) {
+      if (!entitiesData.find((e) => e.id === entityId)) {
         scene.remove(mesh);
         entitiesRef.current.delete(entityId);
       }
@@ -325,7 +350,7 @@ export default function WorldViewer() {
     // Add or update entities
     for (const entityData of entitiesData) {
       let mesh = entitiesRef.current.get(entityData.id);
-      
+
       if (!mesh) {
         // Create new entity mesh
         mesh = await createEntityMesh(entityData);
@@ -343,16 +368,20 @@ export default function WorldViewer() {
       if (entityData.components?.Health) {
         const health = entityData.components.Health;
         const healthPercent = health.currentHealth / health.maxHealth;
-        
+
         // Color coding based on health
         if (mesh.material) {
-          const baseColor = entityData.type === 'PlayerCharacter' ? 0x4169E1 : 
-                           entityData.faction === 'hostile' ? 0xFF4500 : 0x32CD32;
-          
+          const baseColor =
+            entityData.type === "PlayerCharacter"
+              ? 0x4169e1
+              : entityData.faction === "hostile"
+                ? 0xff4500
+                : 0x32cd32;
+
           if (healthPercent < 0.3) {
-            mesh.material.color.setHex(0xFF0000); // Red for low health
+            mesh.material.color.setHex(0xff0000); // Red for low health
           } else if (healthPercent < 0.6) {
-            mesh.material.color.setHex(0xFFFF00); // Yellow for medium health
+            mesh.material.color.setHex(0xffff00); // Yellow for medium health
           } else {
             mesh.material.color.setHex(baseColor); // Normal color
           }
@@ -370,70 +399,69 @@ export default function WorldViewer() {
       toast({
         title: "Missing Character Name",
         description: "Please enter a character name",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     try {
-      const response = await fetch('/api/ecs/create-character', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/ecs/create-character", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerId: `player-${Date.now()}`,
           characterName: characterName.trim(),
-          position: { 
-            x: Math.random() * 20 - 10, 
-            y: 0, 
-            z: Math.random() * 20 - 10 
+          position: {
+            x: Math.random() * 20 - 10,
+            y: 0,
+            z: Math.random() * 20 - 10,
           },
-          characterClass: 'fighter',
-          race: 'human'
-        })
+          characterClass: "fighter",
+          race: "human",
+        }),
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast({
           title: "Character Created",
-          description: `${characterName} spawned in the world`
+          description: `${characterName} spawned in the world`,
         });
-        setCharacterName('');
-        
+        setCharacterName("");
+
         // Add to local entities list immediately
         const newEntity = {
           id: data.data.entityId,
-          type: 'PlayerCharacter',
+          type: "PlayerCharacter",
           characterName: characterName.trim(),
           playerId: data.data.playerId,
           components: {
-            Transform: { 
-              position: { 
-                x: Math.random() * 20 - 10, 
-                y: 0, 
-                z: Math.random() * 20 - 10 
-              } 
+            Transform: {
+              position: {
+                x: Math.random() * 20 - 10,
+                y: 0,
+                z: Math.random() * 20 - 10,
+              },
             },
-            Health: { currentHealth: 100, maxHealth: 100 }
-          }
+            Health: { currentHealth: 100, maxHealth: 100 },
+          },
         };
-        
-        setEntities(prev => [...prev, newEntity]);
+
+        setEntities((prev) => [...prev, newEntity]);
         await updateEntities([...entities, newEntity]);
-        
       } else {
         toast({
           title: "Creation Failed",
           description: data.error || "Could not create character",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Network Error",
         description: "Could not connect to game server",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -441,37 +469,37 @@ export default function WorldViewer() {
   // Spawn test NPC
   const spawnNPC = async () => {
     try {
-      const npcTypes = ['goblin', 'orc', 'skeleton', 'wolf'];
+      const npcTypes = ["goblin", "orc", "skeleton", "wolf"];
       const npcType = npcTypes[Math.floor(Math.random() * npcTypes.length)];
-      
-      const response = await fetch('/api/ecs/create-npc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      const response = await fetch("/api/ecs/create-npc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           npcType,
           challengeRating: Math.floor(Math.random() * 3) + 1,
-          position: { 
-            x: Math.random() * 30 - 15, 
-            y: 0, 
-            z: Math.random() * 30 - 15 
+          position: {
+            x: Math.random() * 30 - 15,
+            y: 0,
+            z: Math.random() * 30 - 15,
           },
-          faction: Math.random() > 0.5 ? 'hostile' : 'neutral'
-        })
+          faction: Math.random() > 0.5 ? "hostile" : "neutral",
+        }),
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast({
           title: "NPC Spawned",
-          description: `${npcType} appeared in the world`
+          description: `${npcType} appeared in the world`,
         });
       }
     } catch (error) {
       toast({
         title: "Spawn Failed",
         description: "Could not spawn NPC",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -479,9 +507,10 @@ export default function WorldViewer() {
   // Handle mouse clicks on entities
   useEffect(() => {
     const handleClick = async (event: MouseEvent) => {
-      if (!rendererRef.current || !cameraRef.current || !sceneRef.current) return;
+      if (!rendererRef.current || !cameraRef.current || !sceneRef.current)
+        return;
 
-      const THREE = await import('three');
+      const THREE = await import("three");
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
 
@@ -492,7 +521,10 @@ export default function WorldViewer() {
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, cameraRef.current);
-      const intersects = raycaster.intersectObjects(sceneRef.current.children, true);
+      const intersects = raycaster.intersectObjects(
+        sceneRef.current.children,
+        true,
+      );
 
       if (intersects.length > 0) {
         const object = intersects[0].object;
@@ -500,7 +532,7 @@ export default function WorldViewer() {
           setSelectedEntity(object.userData.entityId);
           toast({
             title: "Entity Selected",
-            description: `Selected: ${object.userData.entityData?.characterName || object.userData.entityData?.npcType || 'Entity'}`
+            description: `Selected: ${object.userData.entityData?.characterName || object.userData.entityData?.npcType || "Entity"}`,
           });
         }
       }
@@ -508,8 +540,8 @@ export default function WorldViewer() {
 
     const canvas = canvasRef.current;
     if (canvas) {
-      canvas.addEventListener('click', handleClick);
-      return () => canvas.removeEventListener('click', handleClick);
+      canvas.addEventListener("click", handleClick);
+      return () => canvas.removeEventListener("click", handleClick);
     }
   }, [isInitialized]);
 
@@ -518,19 +550,21 @@ export default function WorldViewer() {
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold">D&D MMORPG - Dynamic Terrain Viewer</h1>
+          <h1 className="text-2xl font-bold">
+            D&D MMORPG - Dynamic Terrain Viewer
+          </h1>
           <Badge variant={isConnected ? "default" : "destructive"}>
             {isConnected ? "Connected" : "Disconnected"}
           </Badge>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Input
             placeholder="Character name..."
             value={characterName}
             onChange={(e) => setCharacterName(e.target.value)}
             className="w-40"
-            onKeyPress={(e) => e.key === 'Enter' && createCharacter()}
+            onKeyPress={(e) => e.key === "Enter" && createCharacter()}
           />
           <Button onClick={createCharacter} size="sm">
             <Users className="w-4 h-4 mr-2" />
@@ -546,12 +580,12 @@ export default function WorldViewer() {
       <div className="flex flex-1">
         {/* 3D Viewport */}
         <div className="flex-1 bg-black">
-          <canvas 
+          <canvas
             ref={canvasRef}
             className="w-full h-full cursor-crosshair"
-            style={{ maxHeight: '70vh' }}
+            style={{ maxHeight: "70vh" }}
           />
-          
+
           {!isInitialized && (
             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
               <div className="text-center">
@@ -576,7 +610,9 @@ export default function WorldViewer() {
                   <div>Active Combats: {ecsStatus.activeCombats}</div>
                   <div>Frame Time: {ecsStatus.ecs.frameTime}ms</div>
                   <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${ecsStatus.unity.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <div
+                      className={`w-2 h-2 rounded-full ${ecsStatus.unity.connected ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
                     <span>Unity Bridge</span>
                   </div>
                 </>
@@ -592,10 +628,18 @@ export default function WorldViewer() {
               <CardTitle className="text-sm">Controls</CardTitle>
             </CardHeader>
             <CardContent className="text-xs space-y-2">
-              <div>• <strong>Mouse:</strong> Click to select entities</div>
-              <div>• <strong>Drag:</strong> Rotate camera</div>
-              <div>• <strong>Scroll:</strong> Zoom in/out</div>
-              <div>• <strong>Colors:</strong></div>
+              <div>
+                • <strong>Mouse:</strong> Click to select entities
+              </div>
+              <div>
+                • <strong>Drag:</strong> Rotate camera
+              </div>
+              <div>
+                • <strong>Scroll:</strong> Zoom in/out
+              </div>
+              <div>
+                • <strong>Colors:</strong>
+              </div>
               <div className="ml-4">
                 <div>Blue: Player Characters</div>
                 <div>Red: Hostile NPCs</div>
@@ -616,16 +660,16 @@ export default function WorldViewer() {
               </CardContent>
             </Card>
           )}
-
+          {THREE = await import("three");}
           {/* Quick Actions */}
           <Card className="m-4">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button size="sm" className="w-full">
+              <Button onClick={loadTerrainChunks(sceneRef, THREE)} size="sm" className="w-full">
                 <Navigation className="w-4 h-4 mr-2" />
-                Center Camera
+                Generate Terrain
               </Button>
               <Button size="sm" variant="outline" className="w-full">
                 <Zap className="w-4 h-4 mr-2" />

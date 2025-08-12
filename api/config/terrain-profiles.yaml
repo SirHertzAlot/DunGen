@@ -1,0 +1,153 @@
+profiles:
+  # Default general-purpose terrain profile
+  default:
+    algorithm: "perlin"
+    frequency: 0.015
+    amplitude: 1.0
+    octaves: 6
+    persistence: 0.5
+    lacunarity: 2.0
+    minHeight: 0
+    maxHeight: 400
+    erosionIterations: 3
+    smoothingPasses: 2
+    turbulent: true
+    steps: 4
+    biomes:
+      - name: "water"
+        heightRange: [0.0, 0.3]
+        color: "#0077be"
+        features: ["fish", "coral", "seaweed"]
+      - name: "beach"
+        heightRange: [0.3, 0.35]
+        color: "#decf8f"
+        features: ["shell", "crab", "palm_tree"]
+      - name: "plains"
+        heightRange: [0.35, 0.6]
+        color: "#567d46"
+        features: ["grass", "flower", "settlement"]
+      - name: "forest"
+        heightRange: [0.6, 0.8]
+        color: "#2d4c1e"
+        features: ["tree", "bush", "wildlife"]
+      - name: "mountain"
+        heightRange: [0.8, 0.95]
+        color: "#8c8c8c"
+        features: ["rock", "ore", "cave"]
+      - name: "snow"
+        heightRange: [0.95, 1.0]
+        color: "#ffffff"
+        features: ["ice", "snow_drift"]
+    transformations:
+      - "spawn_settlements"
+      - "add_water_features"
+      - "place_resources"
+      - "create_paths"
+
+  # Mountain region profile
+  mountains:
+    algorithm: "ridged"
+    frequency: 0.02
+    amplitude: 1.0
+    octaves: 8
+    persistence: 0.6
+    lacunarity: 2.5
+    minHeight: 50
+    maxHeight: 700
+    erosionIterations: 5
+    smoothingPasses: 1
+    turbulent: true
+    steps: 5
+    biomes:
+      - name: "valley"
+        heightRange: [0.0, 0.3]
+        color: "#567d46"
+      - name: "foothills"
+        heightRange: [0.3, 0.5]
+        color: "#4c6b33"
+      - name: "mountain"
+        heightRange: [0.5, 0.8]
+        color: "#8c8c8c"
+      - name: "high_peaks"
+        heightRange: [0.8, 0.95]
+        color: "#a9a9a9"
+      - name: "snow"
+        heightRange: [0.95, 1.0]
+        color: "#ffffff"
+    transformations:
+      - "spawn_mountain_villages"
+      - "add_cave_systems"
+      - "place_mining_resources"
+      - "create_mountain_paths"
+
+  # Island archipelago profile
+  islands:
+    algorithm: "islands"
+    frequency: 0.01
+    amplitude: 1.0
+    octaves: 7
+    persistence: 0.4
+    lacunarity: 2.0
+    minHeight: -100
+    maxHeight: 300
+    erosionIterations: 3
+    smoothingPasses: 2
+    turbulent: true
+    steps: 3
+    biomes:
+      - name: "deep_water"
+        heightRange: [0.0, 0.35]
+        color: "#00426e"
+      - name: "shallow_water"
+        heightRange: [0.35, 0.48]
+        color: "#0077be"
+      - name: "beach"
+        heightRange: [0.48, 0.52]
+        color: "#decf8f"
+      - name: "coastal"
+        heightRange: [0.52, 0.65]
+        color: "#7ea64c"
+      - name: "inland"
+        heightRange: [0.65, 0.85]
+        color: "#567d46"
+      - name: "peak"
+        heightRange: [0.85, 1.0]
+        color: "#a0a0a0"
+    transformations:
+      - "spawn_coastal_villages"
+      - "add_tropical_vegetation"
+      - "place_island_resources"
+      - "create_coastal_paths"
+
+  # Desert landscape profile
+  desert:
+    algorithm: "perlin"
+    frequency: 0.008
+    amplitude: 0.7
+    octaves: 4
+    persistence: 0.4
+    lacunarity: 1.8
+    minHeight: 0
+    maxHeight: 250
+    erosionIterations: 6
+    smoothingPasses: 1
+    turbulent: false
+    steps: 2
+    biomes:
+      - name: "sand_sea"
+        heightRange: [0.0, 0.3]
+        color: "#e8c17c"
+      - name: "dunes"
+        heightRange: [0.3, 0.6]
+        color: "#d9b166"
+      - name: "rocky_desert"
+        heightRange: [0.6, 0.85]
+        color: "#b89b6a"
+      - name: "mesa"
+        heightRange: [0.85, 1.0]
+        color: "#a3633d"
+    transformations:
+      - "spawn_oasis"
+      - "add_desert_vegetation"
+      - "place_desert_resources"
+      - "create_caravan_routes"
