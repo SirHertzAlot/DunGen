@@ -29,7 +29,7 @@ class RedisEventBus implements IEventBus {
       port: parseInt(process.env.REDIS_PORT || '6379'),
       retryDelayOnFailover: 100,
       maxRetriesPerRequest: 3,
-      lazyConnect: true
+      lazyConnect: true,
     };
 
     this.publisher = new Redis(redisConfig);

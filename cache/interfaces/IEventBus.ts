@@ -13,6 +13,7 @@ export interface GameEventMessage {
 
 // Event bus interface - all implementations must follow this
 export interface IEventBus {
+  logger: ILogger;
   initialize(config: EventBusConfig): Promise<void>;
   publish(channel: string, message: GameEventMessage): Promise<void>;
   subscribe(channel: string, handler: (message: GameEventMessage) => void): Promise<void>;

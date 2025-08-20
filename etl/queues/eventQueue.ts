@@ -9,6 +9,7 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
  * Event Queue for processing game events asynchronously
  * Handles high-throughput event processing with retry logic and dead letter queues
  */
+
 export class EventQueue {
   private queues: Map<string, Queue> = new Map();
   private workers: Map<string, Worker> = new Map();

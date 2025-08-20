@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
 import { Check, ChevronRight, Circle } from "lucide-react"
+import { Link } from "wouter"
 
 import { cn } from "@/lib/utils"
 
@@ -47,7 +48,15 @@ const Menubar = React.forwardRef<
       className
     )}
     {...props}
-  />
+>  <MenubarTrigger>Menu</MenubarTrigger>
+    <MenubarItem>
+      <Link href="/terrain-designer">Terrain Designer</Link>
+    </MenubarItem>
+
+    <MenubarItem>
+      <Link href="/heightmap-viewer">Heightmap Viewer</Link>
+    </MenubarItem>
+  </MenubarPrimitive.Root>
 ))
 Menubar.displayName = MenubarPrimitive.Root.displayName
 

@@ -1,25 +1,29 @@
-import { Router } from 'express';
-import { playerController } from '../controllers/playerController';
-import { worldController } from '../controllers/worldController';
-import { validate, validateUUID, validatePagination } from '../middleware/validation';
+import { Router } from "express";
+import { playerController } from "../controllers/playerController";
+import { worldController } from "../controllers/worldController";
+import {
+  validate,
+  validateUUID,
+  validatePagination,
+} from "../middleware/validation";
 import {
   generalRateLimit,
   authRateLimit,
   playerActionRateLimit,
-  adminRateLimit
-} from '../middleware/rateLimiting';
+  adminRateLimit,
+} from "../middleware/rateLimiting";
 import {
   verifyToken,
   requirePlayer,
   requireAdmin,
-  optionalAuth
-} from '../middleware/auth';
+  optionalAuth,
+} from "../middleware/auth";
 import {
   insertPlayerSchema,
   updatePlayerSchema,
   insertRegionSchema,
-  insertGameEventSchema
-} from '@shared/schema';
+  insertGameEventSchema,
+} from "@shared/schema";
 
 const router = Router();
 
@@ -27,11 +31,11 @@ const router = Router();
 router.use(generalRateLimit);
 
 // Health check endpoint
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
-    status: 'ok',
+    status: "ok",
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || "1.0.0",
   });
 });
 
@@ -40,179 +44,167 @@ const playerRoutes = Router();
 
 // Public player routes
 playerRoutes.post(
-  '/',
+  "/",
   authRateLimit,
   validate({ body: insertPlayerSchema }),
-  playerController.createPlayer
+  playerController.createPlayer,
 );
 
 playerRoutes.get(
-  '/:id',
-  validateUUID('id'),
+  "/:id",
+  validateUUID("id"),
   optionalAuth,
-  playerController.getPlayer
+  playerController.getPlayer,
 );
 
 // Protected player routes
 playerRoutes.use(verifyToken, requirePlayer);
 
 playerRoutes.put(
-  '/:id',
+  "/:id",
   playerActionRateLimit,
-  validateUUID('id'),
+  validateUUID("id"),
   validate({ body: updatePlayerSchema }),
-  playerController.updatePlayer
+  playerController.updatePlayer,
 );
 
 playerRoutes.post(
-  '/:id/move',
+  "/:id/move",
   playerActionRateLimit,
-  validateUUID('id'),
-  playerController.movePlayer
+  validateUUID("id"),
+  playerController.movePlayer,
 );
 
-playerRoutes.delete(
-  '/:id',
-  validateUUID('id'),
-  playerController.deletePlayer
-);
+playerRoutes.delete("/:id", validateUUID("id"), playerController.deletePlayer);
 
 // Admin-only player routes
 playerRoutes.get(
-  '/',
+  "/",
   requireAdmin,
   adminRateLimit,
   validatePagination,
-  playerController.getOnlinePlayers
+  playerController.getOnlinePlayers,
 );
 
 playerRoutes.get(
-  '/region/:regionId',
+  "/region/:regionId",
   requireAdmin,
   adminRateLimit,
-  playerController.getPlayersByRegion
+  playerController.getPlayersByRegion,
 );
 
-router.use('/players', playerRoutes);
+router.use("/players", playerRoutes);
 
 // World/Region routes
 const worldRoutes = Router();
 
 // Public world routes
-worldRoutes.get(
-  '/regions',
-  optionalAuth,
-  worldController.getAllRegions
-);
+worldRoutes.get("/regions", optionalAuth, worldController.getAllRegions);
 
 worldRoutes.get(
-  '/regions/:id',
-  validateUUID('id'),
+  "/regions/:id",
+  validateUUID("id"),
   optionalAuth,
-  worldController.getRegion
+  worldController.getRegion,
 );
 
 // Protected world routes
 worldRoutes.use(verifyToken);
 
 worldRoutes.post(
-  '/events',
+  "/events",
   playerActionRateLimit,
   validate({ body: insertGameEventSchema }),
-  worldController.logGameEvent
+  worldController.logGameEvent,
 );
 
-worldRoutes.get(
-  '/events',
-  validatePagination,
-  worldController.getGameEvents
-);
+worldRoutes.get("/events", validatePagination, worldController.getGameEvents);
 
 // Admin-only world routes
 worldRoutes.post(
-  '/regions',
+  "/regions",
   requireAdmin,
   adminRateLimit,
   validate({ body: insertRegionSchema }),
-  worldController.createRegion
+  worldController.createRegion,
 );
 
 worldRoutes.put(
-  '/regions/:id/status',
+  "/regions/:id/status",
   requireAdmin,
   adminRateLimit,
-  validateUUID('id'),
-  worldController.updateRegionStatus
+  validateUUID("id"),
+  worldController.updateRegionStatus,
 );
 
 worldRoutes.get(
-  '/regions/server/:serverNode',
+  "/regions/server/:serverNode",
   requireAdmin,
   adminRateLimit,
-  worldController.getRegionsByServerNode
+  worldController.getRegionsByServerNode,
 );
 
-router.use('/world', worldRoutes);
+router.use("/world", worldRoutes);
 
 // Real-time game action routes
 const gameRoutes = Router();
 gameRoutes.use(verifyToken, requirePlayer, playerActionRateLimit);
 
 // Combat endpoints
-gameRoutes.post('/combat/attack', (req, res) => {
+gameRoutes.post("/combat/attack", (req, res) => {
   // Combat logic would be handled by Unity ECS
   // This endpoint validates and forwards to event bus
-  res.json({ message: 'Attack registered' });
+  res.json({ message: "Attack registered" });
 });
 
 // Chat endpoints
-gameRoutes.post('/chat/message', (req, res) => {
+gameRoutes.post("/chat/message", (req, res) => {
   // Chat message validation and broadcast
-  res.json({ message: 'Message sent' });
+  res.json({ message: "Message sent" });
 });
 
 // Trading endpoints
-gameRoutes.post('/trade/initiate', (req, res) => {
+gameRoutes.post("/trade/initiate", (req, res) => {
   // Trade initiation logic
-  res.json({ message: 'Trade initiated' });
+  res.json({ message: "Trade initiated" });
 });
 
-router.use('/game', gameRoutes);
+router.use("/game", gameRoutes);
 
 // Admin routes
 const adminRoutes = Router();
 adminRoutes.use(verifyToken, requireAdmin, adminRateLimit);
 
-adminRoutes.get('/stats/overview', (req, res) => {
+adminRoutes.get("/stats/overview", (req, res) => {
   // Return overall game statistics
   res.json({
     totalPlayers: 0,
     onlinePlayers: 0,
     activeRegions: 0,
-    totalEvents: 0
+    totalEvents: 0,
   });
 });
 
-adminRoutes.get('/players/search', (req, res) => {
+adminRoutes.get("/players/search", (req, res) => {
   // Advanced player search functionality
   res.json({ players: [] });
 });
 
-adminRoutes.post('/maintenance/mode', (req, res) => {
+adminRoutes.post("/maintenance/mode", (req, res) => {
   // Enable/disable maintenance mode
-  res.json({ message: 'Maintenance mode updated' });
+  res.json({ message: "Maintenance mode updated" });
 });
 
-router.use('/admin', adminRoutes);
+router.use("/admin", adminRoutes);
 
 // Error handling middleware
 router.use((error: any, req: any, res: any, next: any) => {
-  console.error('API Error:', error);
+  console.error("API Error:", error);
   res.status(error.status || 500).json({
-    error: error.message || 'Internal server error',
+    error: error.message || "Internal server error",
     path: req.path,
     method: req.method,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
