@@ -33,6 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { SystemHealthBadge } from "@/components/SystemHealthBadge";
 
 interface Region {
   id: string;
@@ -77,16 +78,16 @@ export default function Dashboard() {
   });
 
   // Query for system health
-  const healthResponse = useQuery<{
+  const {
+    data: healthResponse,
+    isLoading: healthLoading,
+    success: boolean,
+    status: string,
+  } = useQuery<{
+    success: boolean;
     status: string;
-    timestamp: string;
-    service: string;
   }>({
     queryKey: ["/api/health"],
-    queryFn: async () => {
-      const response = await fetch("/api/health");
-      return response.json();
-    },
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
@@ -127,9 +128,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 mb-2">
               <Gamepad2 className="h-8 w-8 text-primary" />
               <h1 className="text-3xl font-bold">MMORPG Backend Dashboard</h1>
-              <Badge variant={systemHealth ? "default" : "destructive"}>
-                {systemHealth ? "Online" : "Offline"}
-              </Badge>
+              {/* Replaced inline logic with a focused component */}
+              <SystemHealthBadge />
             </div>
             <Link href="/world">
               <Button className="flex items-center gap-2">

@@ -12,7 +12,7 @@ type HealthResponse = {
 interface Props {
   endpoint?: string;
   pollIntervalMs?: number;
-  requestTimeoutMs?: number;
+
 }
 
 /**
@@ -83,6 +83,7 @@ export function SystemHealthBadge({
     label = isFetching ? "Offline • Updating" : "Offline";
     variant = "destructive";
   }
+
 
   return <Badge variant={variant}>{label}</Badge>;
 }

@@ -32,7 +32,7 @@ const router = Router();
 router.use(generalRateLimit);
 
 // Health check endpoint
-router.get("/health", healthCheckerMiddleware, (req, res) => {
+router.get("/api/health", healthCheckerMiddleware, (req, res) => {
   if (req) {
     logger.info(`Health check request received @ ${new Date().toISOString()}`);
   }
