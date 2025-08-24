@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { playerController } from "../controllers/playerController";
 import { worldController } from "../controllers/worldController";
+import { healthCheckerMiddleware } from "../utils/healthChecker";
 import {
   validate,
   validateUUID,
@@ -31,9 +32,23 @@ const router = Router();
 router.use(generalRateLimit);
 
 // Health check endpoint
-router.get("/health", (req, res) => {
+router.get("/health", healthCheckerMiddleware, (req, res) => {
+  if (req) {
+    logger.info(`Health check request received @ ${new Date().toISOString()}`);
+  }
+  if (!req.status === "ok") {
+    logger.info(`req was not able to be fulfilled.`);
+    res.json({
+      status: "error",
+      message: ` ${req.service.toString()} did not respond...`,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  logger.info(`req was successfully fulfilled.`);
   res.json({
-    status: "ok",
+    status: req.status.toString(),
+    service: req.service.toString(),
+    message: req.message.toString(),
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || "1.0.0",
   });

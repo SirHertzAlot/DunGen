@@ -30,6 +30,12 @@ export const healthCheckerMiddleware = (
         logger.healthCheck(
           `Redis server responded with PONG @ ${formattedDateTime}.`,
         );
+        res.status(200).json({
+          status: "ok",
+          service: logger["serviceName"],
+          message: "Redis server is healthy.",
+          timestamp: formattedDateTime,
+        });
         next();
       }
     } catch (error) {
@@ -39,7 +45,8 @@ export const healthCheckerMiddleware = (
         { component: "redis", service: logger["serviceName"], reply },
       );
       return res.status(500).json({
-        status: "error",
+        status: `${error}`,
+        service: logger["serviceName"],
         message: "Redis server seems to be down...",
         timestamp: formattedDateTime,
       });
