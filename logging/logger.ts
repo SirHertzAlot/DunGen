@@ -146,6 +146,6 @@ class MMORPGLogger implements ILogger {
 }
 
 // Export a function to create logger instances, not a singleton
-export function logger(config?: ILoggerConfig): ILogger {
+export default function logger(config?: ILoggerConfig): ILogger {
   return new MMORPGLogger(config);
 }

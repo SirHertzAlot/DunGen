@@ -1,7 +1,7 @@
-import { WebSocketServer } from 'ws';
-import { ecsManager, UnityMessage } from '../ecs/ECSManager';
-import { logger } from '../../logging/logger';
-import { v4 as uuidv4 } from 'uuid';
+import { WebSocketServer } from "ws";
+import { ecsManager, UnityMessage } from "../ecs/ECSManager";
+import logger from "../../logging/logger";
+import { v4 as uuidv4 } from "uuid";
 
 // Unity communication bridge for real-time ECS synchronization
 export class UnityBridge {
@@ -14,12 +14,15 @@ export class UnityBridge {
   private reconnectAttempts: number = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  private logger: ILogger;
 
-  private constructor() {}
+  private constructor(logger: ILogger) {
+    this.logger = logger;
+  }
 
-  public static getInstance(): UnityBridge {
+  public static getInstance(logger: ILogger): UnityBridge {
     if (!UnityBridge.instance) {
-      UnityBridge.instance = new UnityBridge();
+      UnityBridge.instance = new UnityBridge(logger);
     }
     return UnityBridge.instance;
   }
@@ -27,40 +30,39 @@ export class UnityBridge {
   // Initialize WebSocket server for Unity connection
   public async initialize(port: number = 8080): Promise<void> {
     try {
-      this.wsServer = new WebSocketServer({ 
+      this.wsServer = new WebSocketServer({
         port,
-        perMessageDeflate: false // Disable compression for low latency
+        perMessageDeflate: false, // Disable compression for low latency
       });
 
-      this.wsServer.on('connection', (ws: any) => {
+      this.wsServer.on("connection", (ws: any) => {
         this.handleUnityConnection(ws);
       });
 
-      this.wsServer.on('error', (error) => {
-        logger.error('Unity Bridge WebSocket server error', error, {
-          service: 'UnityBridge'
+      this.wsServer.on("error", (error) => {
+        this.logger.error("Unity Bridge WebSocket server error", error, {
+          service: "UnityBridge",
         });
       });
 
-      logger.info('Unity Bridge initialized', {
-        service: 'UnityBridge',
+      this.logger.info("Unity Bridge initialized", {
+        service: "UnityBridge",
         port,
-        maxReconnects: this.MAX_RECONNECT_ATTEMPTS
+        maxReconnects: this.MAX_RECONNECT_ATTEMPTS,
       });
-
     } catch (error) {
-      logger.error('Failed to initialize Unity Bridge', error as Error, {
-        service: 'UnityBridge',
-        port
+      this.logger.error("Failed to initialize Unity Bridge", error as Error, {
+        service: "UnityBridge",
+        port,
       });
       throw error;
     }
   }
 
   private handleUnityConnection(ws: any): void {
-    logger.info('Unity client connected', {
-      service: 'UnityBridge',
-      clientIP: ws.url || 'unknown'
+    this.logger.info("Unity client connected", {
+      service: "UnityBridge",
+      clientIP: ws.url || "unknown",
     });
 
     this.unityClient = ws;
@@ -68,17 +70,17 @@ export class UnityBridge {
     this.reconnectAttempts = 0;
 
     // Setup message handling
-    ws.on('message', (data: Buffer) => {
+    ws.on("message", (data: Buffer) => {
       this.handleUnityMessage(data);
     });
 
-    ws.on('close', () => {
+    ws.on("close", () => {
       this.handleUnityDisconnection();
     });
 
-    ws.on('error', (error) => {
-      logger.error('Unity client connection error', error, {
-        service: 'UnityBridge'
+    ws.on("error", (error) => {
+      this.logger.error("Unity client connection error", error, {
+        service: "UnityBridge",
       });
     });
 
@@ -95,18 +97,18 @@ export class UnityBridge {
   private handleUnityMessage(data: Buffer): void {
     try {
       const message: UnityMessage = JSON.parse(data.toString());
-      
+
       // Validate message structure
       if (!this.isValidUnityMessage(message)) {
-        logger.warn('Invalid Unity message received', {
-          service: 'UnityBridge',
-          messageType: message.messageType
+        this.logger.warn("Invalid Unity message received", {
+          service: "UnityBridge",
+          messageType: message.messageType,
         });
         return;
       }
 
       // Handle special Unity messages
-      if (message.messageType === 'heartbeat') {
+      if (message.messageType === "heartbeat") {
         this.sendHeartbeatResponse();
         return;
       }
@@ -114,24 +116,23 @@ export class UnityBridge {
       // Forward to ECS Manager
       ecsManager.queueUnityMessage(message);
 
-      logger.debug('Unity message processed', {
-        service: 'UnityBridge',
+      this.logger.debug("Unity message processed", {
+        service: "UnityBridge",
         messageType: message.messageType,
-        messageId: message.messageId
+        messageId: message.messageId,
       });
-
     } catch (error) {
-      logger.error('Error processing Unity message', error as Error, {
-        service: 'UnityBridge',
-        dataLength: data.length
+      this.logger.error("Error processing Unity message", error as Error, {
+        service: "UnityBridge",
+        dataLength: data.length,
       });
     }
   }
 
   private handleUnityDisconnection(): void {
-    logger.warn('Unity client disconnected', {
-      service: 'UnityBridge',
-      reconnectAttempts: this.reconnectAttempts
+    this.logger.warn("Unity client disconnected", {
+      service: "UnityBridge",
+      reconnectAttempts: this.reconnectAttempts,
     });
 
     this.isConnected = false;
@@ -147,9 +148,9 @@ export class UnityBridge {
       this.reconnectAttempts++;
       setTimeout(() => {
         // Unity would need to reconnect to us, not the other way around
-        logger.info('Waiting for Unity reconnection', {
-          service: 'UnityBridge',
-          attempt: this.reconnectAttempts
+        this.logger.info("Waiting for Unity reconnection", {
+          service: "UnityBridge",
+          attempt: this.reconnectAttempts,
         });
       }, 5000);
     }
@@ -160,31 +161,31 @@ export class UnityBridge {
     if (!this.isConnected || !this.unityClient) {
       // Buffer message for when connection is restored
       this.messageBuffer.push(message);
-      
-      if (this.messageBuffer.length > 1000) { // Prevent memory overflow
+
+      if (this.messageBuffer.length > 1000) {
+        // Prevent memory overflow
         this.messageBuffer.shift(); // Remove oldest message
       }
-      
+
       return false;
     }
 
     try {
       const messageString = JSON.stringify(message);
       this.unityClient.send(messageString);
-      
-      logger.debug('Message sent to Unity', {
-        service: 'UnityBridge',
+
+      this.logger.debug("Message sent to Unity", {
+        service: "UnityBridge",
         messageType: message.messageType,
         messageId: message.messageId,
-        dataSize: messageString.length
+        dataSize: messageString.length,
       });
 
       return true;
-
     } catch (error) {
-      logger.error('Error sending message to Unity', error as Error, {
-        service: 'UnityBridge',
-        messageType: message.messageType
+      this.logger.error("Error sending message to Unity", error as Error, {
+        service: "UnityBridge",
+        messageType: message.messageType,
       });
       return false;
     }
@@ -193,22 +194,22 @@ export class UnityBridge {
   // Send handshake to Unity
   private sendHandshake(): void {
     const handshakeMessage: UnityMessage = {
-      messageType: 'systemCommand',
+      messageType: "systemCommand",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
-        command: 'handshake',
+        command: "handshake",
         parameters: {
-          serverVersion: '1.0.0',
-          protocolVersion: '1.0',
+          serverVersion: "1.0.0",
+          protocolVersion: "1.0",
           supportedFeatures: [
-            'realtime_combat',
-            'entity_sync',
-            'spell_effects',
-            'movement_prediction'
-          ]
-        }
-      }
+            "realtime_combat",
+            "entity_sync",
+            "spell_effects",
+            "movement_prediction",
+          ],
+        },
+      },
     };
 
     this.sendToUnity(handshakeMessage);
@@ -223,16 +224,16 @@ export class UnityBridge {
     this.heartbeatInterval = setInterval(() => {
       if (this.isConnected && this.unityClient) {
         const heartbeatMessage: UnityMessage = {
-          messageType: 'systemCommand',
+          messageType: "systemCommand",
           messageId: uuidv4(),
           timestamp: Date.now(),
           data: {
-            command: 'heartbeat',
+            command: "heartbeat",
             parameters: {
               serverTime: Date.now(),
-              entityCount: ecsManager.getPerformanceStats().entityCount
-            }
-          }
+              entityCount: ecsManager.getPerformanceStats().entityCount,
+            },
+          },
         };
 
         this.sendToUnity(heartbeatMessage);
@@ -242,15 +243,15 @@ export class UnityBridge {
 
   private sendHeartbeatResponse(): void {
     const response: UnityMessage = {
-      messageType: 'systemCommand',
+      messageType: "systemCommand",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
-        command: 'heartbeat_ack',
+        command: "heartbeat_ack",
         parameters: {
-          serverTime: Date.now()
-        }
-      }
+          serverTime: Date.now(),
+        },
+      },
     };
 
     this.sendToUnity(response);
@@ -260,9 +261,9 @@ export class UnityBridge {
   private flushMessageBuffer(): void {
     if (this.messageBuffer.length === 0) return;
 
-    logger.info('Flushing message buffer to Unity', {
-      service: 'UnityBridge',
-      messageCount: this.messageBuffer.length
+    this.logger.info("Flushing message buffer to Unity", {
+      service: "UnityBridge",
+      messageCount: this.messageBuffer.length,
     });
 
     const messages = [...this.messageBuffer];
@@ -277,9 +278,9 @@ export class UnityBridge {
   private isValidUnityMessage(message: any): message is UnityMessage {
     return (
       message &&
-      typeof message.messageType === 'string' &&
-      typeof message.messageId === 'string' &&
-      typeof message.timestamp === 'number' &&
+      typeof message.messageType === "string" &&
+      typeof message.messageId === "string" &&
+      typeof message.timestamp === "number" &&
       message.data !== undefined
     );
   }
@@ -287,13 +288,13 @@ export class UnityBridge {
   // High-level API methods for game systems
   public sendEntityUpdate(entities: any[], deletedEntities: string[]): boolean {
     const message: UnityMessage = {
-      messageType: 'entityUpdate',
+      messageType: "entityUpdate",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
         entities,
-        deletedEntities
-      }
+        deletedEntities,
+      },
     };
 
     return this.sendToUnity(message);
@@ -301,31 +302,35 @@ export class UnityBridge {
 
   public sendCombatEvent(eventType: string, combatData: any): boolean {
     const message: UnityMessage = {
-      messageType: 'gameEvent',
+      messageType: "gameEvent",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
         eventType: `combat_${eventType}`,
-        eventData: combatData
-      }
+        eventData: combatData,
+      },
     };
 
     return this.sendToUnity(message);
   }
 
-  public sendSpellEffect(spellId: string, casterId: string, targetData: any): boolean {
+  public sendSpellEffect(
+    spellId: string,
+    casterId: string,
+    targetData: any,
+  ): boolean {
     const message: UnityMessage = {
-      messageType: 'gameEvent',
+      messageType: "gameEvent",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
-        eventType: 'spell_cast',
+        eventType: "spell_cast",
         entityId: casterId,
         eventData: {
           spellId,
-          targetData
-        }
-      }
+          targetData,
+        },
+      },
     };
 
     return this.sendToUnity(message);
@@ -334,13 +339,13 @@ export class UnityBridge {
   // System control
   public sendSystemCommand(command: string, parameters: any): boolean {
     const message: UnityMessage = {
-      messageType: 'systemCommand',
+      messageType: "systemCommand",
       messageId: uuidv4(),
       timestamp: Date.now(),
       data: {
         command,
-        parameters
-      }
+        parameters,
+      },
     };
 
     return this.sendToUnity(message);
@@ -357,7 +362,7 @@ export class UnityBridge {
       connected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
       bufferedMessages: this.messageBuffer.length,
-      lastHeartbeat: this.heartbeatInterval ? Date.now() : undefined
+      lastHeartbeat: this.heartbeatInterval ? Date.now() : undefined,
     };
   }
 
@@ -381,11 +386,12 @@ export class UnityBridge {
     this.isConnected = false;
     this.messageBuffer = [];
 
-    logger.info('Unity Bridge shutdown complete', {
-      service: 'UnityBridge'
+    this.logger.info("Unity Bridge shutdown complete", {
+      service: "UnityBridge",
     });
   }
 }
 
 // Singleton instance
-export const unityBridge = UnityBridge.getInstance();
+const unityLog = logger({ serviceName: "UnityBridge" });
+export const unityBridge = UnityBridge.getInstance(unityLog);

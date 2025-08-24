@@ -4,7 +4,8 @@ import { eventQueue } from "./queues/eventQueue";
 import { playerTransformer } from "./transformers/playerTransformer";
 import { worldTransformer } from "./transformers/worldTransformer";
 import { eventValidator } from "./validation/eventValidator";
-import { logger } from "../logging/logger";
+import logger from "../logging/logger";
+import type { ILogger } from "../logging/logger";
 import { healthCheckerMiddleware } from "../utils/healthChecker";
 
 /**
@@ -17,12 +18,10 @@ import { healthCheckerMiddleware } from "../utils/healthChecker";
 class ETLService {
   private app: express.Application;
   private isInitialized = false;
-  private logger = logger({
-    serviceName: "ETLService",
-    consoleVerbose: "true",
-  });
+  private logger: ILogger;
 
-  constructor() {
+  constructor(logger: ILogger) {
+    this.logger = logger;
     this.app = express();
     this.setupMiddleware();
     this.setupRoutes();
@@ -34,7 +33,7 @@ class ETLService {
 
     // Request logging
     this.app.use((req, res, next) => {
-      logger.info("ETL Request", {
+      this.logger.info("ETL Request", {
         method: req.method,
         path: req.path,
         ip: req.ip,
@@ -109,7 +108,7 @@ class ETLService {
           message: "Event queued for processing",
         });
       } catch (error) {
-        logger.error("Event ingestion failed", {
+        this.logger.error("Event ingestion failed", {
           error: error.message,
           body: req.body,
         });
@@ -192,7 +191,9 @@ class ETLService {
           ),
         });
       } catch (error) {
-        logger.error("Bulk event ingestion failed", { error: error.message });
+        this.logger.error("Bulk event ingestion failed", {
+          error: error.message,
+        });
         res.status(500).json({ error: "Bulk event processing failed" });
       }
     });
@@ -209,7 +210,9 @@ class ETLService {
           message: "Event republished",
         });
       } catch (error) {
-        logger.error("Event republishing failed", { error: error.message });
+        this.logger.error("Event republishing failed", {
+          error: error.message,
+        });
         res.status(500).json({ error: "Event republishing failed" });
       }
     });
@@ -229,7 +232,7 @@ class ETLService {
           },
         });
       } catch (error) {
-        logger.error("Failed to get ETL status", { error: error.message });
+        this.logger.error("Failed to get ETL status", { error: error.message });
         res.status(500).json({ error: "Failed to get status" });
       }
     });
@@ -251,9 +254,9 @@ class ETLService {
       eventQueue.process();
 
       this.isInitialized = true;
-      logger.info("ETL service initialized successfully");
+      this.logger.info("ETL service initialized successfully");
     } catch (error) {
-      logger.error("Failed to initialize ETL service", {
+      this.logger.error("Failed to initialize ETL service", {
         error: error.message,
       });
       throw error;
@@ -266,7 +269,7 @@ class ETLService {
     return new Promise<void>((resolve, reject) => {
       this.app
         .listen(port, "0.0.0.0", () => {
-          logger.info(`ETL service listening on port ${port}`);
+          this.logger.info(`ETL service listening on port ${port}`);
           resolve();
         })
         .on("error", reject);
@@ -274,13 +277,13 @@ class ETLService {
   }
 
   async shutdown() {
-    logger.info("Shutting down ETL service...");
+    this.logger.info("Shutting down ETL service...");
 
     await eventQueue.shutdown();
     await eventBus.shutdown();
 
     this.isInitialized = false;
-    logger.info("ETL service shut down successfully");
+    this.logger.info("ETL service shut down successfully");
   }
 }
 
@@ -289,14 +292,18 @@ function generateEventId(): string {
 }
 
 // Export singleton instance
-export const etlService = new ETLService();
+export const etlService = new ETLService(
+  logger({ serviceName: "ETLService", consoleVerbose: "true" }),
+);
 
 // Auto-start if this file is run directly
-if (require.main === module) {
-  const port = parseInt(process.env.ETL_PORT || "8001");
-
+const isMainModule =
+  import.meta.url ===
+  (process.env.ETL_ENTRY_URL || `file://${process.argv[1]}`);
+if (isMainModule) {
+  const port = parseInt(process.env.ETL_PORT || "8001", 10);
   etlService.start(port).catch((error) => {
-    logger.error("Failed to start ETL service", { error: error.message });
+    this.logger.error("Failed to start ETL service", { error: error.message });
     process.exit(1);
   });
 

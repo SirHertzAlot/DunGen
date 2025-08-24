@@ -1,20 +1,26 @@
-import { Entity, PlayerCharacterEntity, NPCEntity, EntityFactory } from './entities/Entity';
-import { ISystem } from './systems/ISystem';
-import { CombatSystem } from './systems/CombatSystem';
-import { MovementSystem } from './systems/MovementSystem';
-import { logger } from '../../logging/logger';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  Entity,
+  PlayerCharacterEntity,
+  NPCEntity,
+  EntityFactory,
+} from "./entities/Entity";
+import { ISystem } from "./systems/ISystem";
+import { CombatSystem } from "./systems/CombatSystem";
+import { MovementSystem } from "./systems/MovementSystem";
+import logger from "../../logging/logger";
+import type { ILogger } from "../../eventbus/IEventBus"; // Import the interface for typing
+import { v4 as uuidv4 } from "uuid";
 
 // Unity message types for communication
 export interface UnityMessage {
-  messageType: 'entityUpdate' | 'systemCommand' | 'gameEvent';
+  messageType: "entityUpdate" | "systemCommand" | "gameEvent";
   messageId: string;
   timestamp: number;
   data: any;
 }
 
 export interface EntityUpdateMessage extends UnityMessage {
-  messageType: 'entityUpdate';
+  messageType: "entityUpdate";
   data: {
     entities: any[];
     deletedEntities: string[];
@@ -22,7 +28,7 @@ export interface EntityUpdateMessage extends UnityMessage {
 }
 
 export interface SystemCommandMessage extends UnityMessage {
-  messageType: 'systemCommand';
+  messageType: "systemCommand";
   data: {
     command: string;
     parameters: any;
@@ -30,7 +36,7 @@ export interface SystemCommandMessage extends UnityMessage {
 }
 
 export interface GameEventMessage extends UnityMessage {
-  messageType: 'gameEvent';
+  messageType: "gameEvent";
   data: {
     eventType: string;
     playerId?: string;
@@ -41,7 +47,7 @@ export interface GameEventMessage extends UnityMessage {
 
 // High-performance ECS manager for Unity integration
 export class ECSManager {
-  private static instance: ECSManager;
+  private static instance: ECSManager | null = null;
   private entities: Map<string, Entity> = new Map();
   private systems: Map<string, ISystem> = new Map();
   private lastUpdate: number = 0;
@@ -49,86 +55,83 @@ export class ECSManager {
   private readonly FRAME_TIME = 1000 / this.TARGET_FPS;
   private updateInterval: NodeJS.Timeout | null = null;
   private messageQueue: UnityMessage[] = [];
+  private logger: ILogger;
 
   // Performance tracking
   private performanceStats = {
     frameTime: 0,
     entityCount: 0,
     systemUpdateTimes: new Map<string, number>(),
-    lastStatsUpdate: 0
+    lastStatsUpdate: 0,
   };
 
-  private constructor() {
+  private constructor(logger: ILogger) {
+    this.logger = logger;
     this.initializeSystems();
   }
 
-  public static getInstance(): ECSManager {
+  // Allow optional logger injection for the singleton.
+  public static getInstance(loggerArg?: ILogger): ECSManager {
     if (!ECSManager.instance) {
-      ECSManager.instance = new ECSManager();
+      const log = loggerArg || logger({ serviceName: "ECSManager" });
+      ECSManager.instance = new ECSManager(log);
     }
     return ECSManager.instance;
   }
 
   private initializeSystems(): void {
-    // Initialize core systems for D&D MMORPG
-    this.systems.set('Movement', new MovementSystem());
-    this.systems.set('Combat', new CombatSystem());
-    
-    logger.info('ECS systems initialized', {
-      service: 'ECSManager',
+    this.systems.set("Movement", new MovementSystem());
+    this.systems.set("Combat", new CombatSystem());
+
+    this.logger.info("ECS systems initialized", {
+      service: "ECSManager",
       systemCount: this.systems.size,
-      systems: Array.from(this.systems.keys())
+      systems: Array.from(this.systems.keys()),
     });
   }
 
-  // Start the ECS update loop
   public async start(): Promise<void> {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
     }
 
     this.lastUpdate = Date.now();
-    
+
     this.updateInterval = setInterval(async () => {
       await this.update();
     }, this.FRAME_TIME);
 
-    logger.info('ECS Manager started', {
-      service: 'ECSManager',
+    this.logger.info("ECS Manager started", {
+      service: "ECSManager",
       targetFPS: this.TARGET_FPS,
-      frameTime: this.FRAME_TIME
+      frameTime: this.FRAME_TIME,
     });
   }
 
-  // Stop the ECS update loop
   public async stop(): Promise<void> {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
     }
 
-    // Cleanup systems
     for (const [name, system] of this.systems) {
       if (system.cleanup) {
         await system.cleanup();
       }
     }
 
-    logger.info('ECS Manager stopped', {
-      service: 'ECSManager'
+    this.logger.info("ECS Manager stopped", {
+      service: "ECSManager",
     });
   }
 
-  // Main ECS update loop
   private async update(): Promise<void> {
     const updateStart = Date.now();
     const deltaTime = (updateStart - this.lastUpdate) / 1000; // Convert to seconds
 
     try {
-      // Process Unity messages first
       await this.processMessageQueue();
 
-      // Update all systems
       for (const [systemName, system] of this.systems) {
         if (system.enabled !== false) {
           const systemStart = Date.now();
@@ -138,24 +141,20 @@ export class ECSManager {
         }
       }
 
-      // Send updates to Unity
       await this.sendUpdatesToUnity();
 
-      // Update performance stats
       this.updatePerformanceStats(updateStart);
-
     } catch (error) {
-      logger.error('Error in ECS update loop', error as Error, {
-        service: 'ECSManager',
+      this.logger.error("Error in ECS update loop", error as Error, {
+        service: "ECSManager",
         deltaTime,
-        entityCount: this.entities.size
+        entityCount: this.entities.size,
       });
     }
 
     this.lastUpdate = updateStart;
   }
 
-  // Process messages from Unity
   private async processMessageQueue(): Promise<void> {
     while (this.messageQueue.length > 0) {
       const message = this.messageQueue.shift()!;
@@ -166,34 +165,34 @@ export class ECSManager {
   private async processUnityMessage(message: UnityMessage): Promise<void> {
     try {
       switch (message.messageType) {
-        case 'entityUpdate':
+        case "entityUpdate":
           await this.handleEntityUpdate(message as EntityUpdateMessage);
           break;
-        case 'systemCommand':
+        case "systemCommand":
           await this.handleSystemCommand(message as SystemCommandMessage);
           break;
-        case 'gameEvent':
+        case "gameEvent":
           await this.handleGameEvent(message as GameEventMessage);
           break;
       }
     } catch (error) {
-      logger.error('Error processing Unity message', error as Error, {
-        service: 'ECSManager',
+      this.logger.error("Error processing Unity message", error as Error, {
+        service: "ECSManager",
         messageType: message.messageType,
-        messageId: message.messageId
+        messageId: message.messageId,
       });
     }
   }
 
-  private async handleEntityUpdate(message: EntityUpdateMessage): Promise<void> {
+  private async handleEntityUpdate(
+    message: EntityUpdateMessage,
+  ): Promise<void> {
     const { entities: entityUpdates, deletedEntities } = message.data;
 
-    // Remove deleted entities
     for (const entityId of deletedEntities) {
       this.entities.delete(entityId);
     }
 
-    // Update existing entities
     for (const entityData of entityUpdates) {
       const entity = this.entities.get(entityData.id);
       if (entity) {
@@ -202,23 +201,25 @@ export class ECSManager {
     }
   }
 
-  private async handleSystemCommand(message: SystemCommandMessage): Promise<void> {
+  private async handleSystemCommand(
+    message: SystemCommandMessage,
+  ): Promise<void> {
     const { command, parameters } = message.data;
 
     switch (command) {
-      case 'createPlayerCharacter':
+      case "createPlayerCharacter":
         await this.createPlayerCharacter(parameters);
         break;
-      case 'createNPC':
+      case "createNPC":
         await this.createNPC(parameters);
         break;
-      case 'initiateAttack':
+      case "initiateAttack":
         await this.initiateAttack(parameters);
         break;
-      case 'moveEntity':
+      case "moveEntity":
         await this.moveEntity(parameters);
         break;
-      case 'castSpell':
+      case "castSpell":
         await this.castSpell(parameters);
         break;
     }
@@ -226,19 +227,17 @@ export class ECSManager {
 
   private async handleGameEvent(message: GameEventMessage): Promise<void> {
     const { eventType, playerId, entityId, eventData } = message.data;
-    
-    logger.info('Game event received', {
-      service: 'ECSManager',
+
+    this.logger.info("Game event received", {
+      service: "ECSManager",
       eventType,
       playerId,
-      entityId
+      entityId,
     });
 
-    // Broadcast to relevant systems
     // TODO: Implement event system for system communication
   }
 
-  // Send entity updates to Unity
   private async sendUpdatesToUnity(): Promise<void> {
     const dirtyEntities: any[] = [];
     const deletedEntities: string[] = [];
@@ -255,26 +254,24 @@ export class ECSManager {
 
     if (dirtyEntities.length > 0 || deletedEntities.length > 0) {
       const updateMessage: EntityUpdateMessage = {
-        messageType: 'entityUpdate',
+        messageType: "entityUpdate",
         messageId: uuidv4(),
         timestamp: Date.now(),
         data: {
           entities: dirtyEntities,
-          deletedEntities
-        }
+          deletedEntities,
+        },
       };
 
       // TODO: Send to Unity via WebSocket or HTTP
-      // For now, just log the update
-      logger.debug('Sending entity updates to Unity', {
-        service: 'ECSManager',
+      this.logger.debug("Sending entity updates to Unity", {
+        service: "ECSManager",
         entitiesUpdated: dirtyEntities.length,
-        entitiesDeleted: deletedEntities.length
+        entitiesDeleted: deletedEntities.length,
       });
     }
   }
 
-  // Entity management methods
   public async createPlayerCharacter(params: {
     playerId: string;
     characterName: string;
@@ -285,16 +282,16 @@ export class ECSManager {
     const entity = await EntityFactory.createPlayerCharacter(
       params.playerId,
       params.characterName,
-      params.position
+      params.position,
     );
 
     this.entities.set(entity.id, entity);
 
-    logger.info('Player character created', {
-      service: 'ECSManager',
+    this.logger.info("Player character created", {
+      service: "ECSManager",
       entityId: entity.id,
       playerId: params.playerId,
-      characterName: params.characterName
+      characterName: params.characterName,
     });
 
     return entity.id;
@@ -309,7 +306,7 @@ export class ECSManager {
     const entity = await EntityFactory.createNPC(
       params.npcType,
       params.challengeRating,
-      params.position
+      params.position,
     );
 
     if (params.faction) {
@@ -318,23 +315,22 @@ export class ECSManager {
 
     this.entities.set(entity.id, entity);
 
-    logger.info('NPC created', {
-      service: 'ECSManager',
+    this.logger.info("NPC created", {
+      service: "ECSManager",
       entityId: entity.id,
       npcType: params.npcType,
-      challengeRating: params.challengeRating
+      challengeRating: params.challengeRating,
     });
 
     return entity.id;
   }
 
-  // Combat action methods
   public async initiateAttack(params: {
     attackerId: string;
     targetId: string;
     weaponId?: string;
   }): Promise<boolean> {
-    const combatSystem = this.systems.get('Combat') as CombatSystem;
+    const combatSystem = this.systems.get("Combat") as CombatSystem;
     if (!combatSystem) return false;
 
     const action = {
@@ -342,9 +338,9 @@ export class ECSManager {
       traceId: uuidv4(),
       actorId: params.attackerId,
       targetId: params.targetId,
-      actionType: 'attack' as const,
+      actionType: "attack" as const,
       timestamp: Date.now(),
-      data: { weaponId: params.weaponId }
+      data: { weaponId: params.weaponId },
     };
 
     combatSystem.queueAction(action);
@@ -357,16 +353,16 @@ export class ECSManager {
     targetY: number;
     targetZ: number;
   }): Promise<boolean> {
-    const movementSystem = this.systems.get('Movement') as MovementSystem;
+    const movementSystem = this.systems.get("Movement") as MovementSystem;
     const entity = this.entities.get(params.entityId);
-    
+
     if (!movementSystem || !entity) return false;
 
     return movementSystem.setMovementTarget(
       entity,
       params.targetX,
       params.targetY,
-      params.targetZ
+      params.targetZ,
     );
   }
 
@@ -376,7 +372,7 @@ export class ECSManager {
     targetId?: string;
     targetPosition?: { x: number; y: number; z: number };
   }): Promise<boolean> {
-    const combatSystem = this.systems.get('Combat') as CombatSystem;
+    const combatSystem = this.systems.get("Combat") as CombatSystem;
     if (!combatSystem) return false;
 
     const action = {
@@ -384,43 +380,46 @@ export class ECSManager {
       traceId: uuidv4(),
       actorId: params.casterId,
       targetId: params.targetId,
-      actionType: 'spell' as const,
+      actionType: "spell" as const,
       timestamp: Date.now(),
       data: {
         spellId: params.spellId,
-        targetPosition: params.targetPosition
-      }
+        targetPosition: params.targetPosition,
+      },
     };
 
     combatSystem.queueAction(action);
     return true;
   }
 
-  // Message handling for Unity communication
   public queueUnityMessage(message: UnityMessage): void {
     this.messageQueue.push(message);
   }
 
-  // Query methods
   public getEntity(entityId: string): Entity | undefined {
     return this.entities.get(entityId);
   }
 
   public getEntitiesByType(entityType: string): Entity[] {
-    return Array.from(this.entities.values()).filter(entity => entity.type === entityType);
+    return Array.from(this.entities.values()).filter(
+      (entity) => entity.type === entityType,
+    );
   }
 
   public getEntitiesInRadius(
     center: { x: number; y: number; z: number },
-    radius: number
+    radius: number,
   ): Entity[] {
     const result: Entity[] = [];
 
     for (const entity of this.entities.values()) {
-      const transform = entity.getComponent('Transform');
+      const transform = entity.getComponent("Transform");
       if (!transform) continue;
 
-      const distance = this.calculateDistance(center, (transform as any).position);
+      const distance = this.calculateDistance(
+        center,
+        (transform as any).position,
+      );
       if (distance <= radius) {
         result.push(entity);
       }
@@ -429,7 +428,6 @@ export class ECSManager {
     return result;
   }
 
-  // Performance monitoring
   private updatePerformanceStats(updateStart: number): void {
     this.performanceStats.frameTime = Date.now() - updateStart;
     this.performanceStats.entityCount = this.entities.size;
@@ -437,11 +435,13 @@ export class ECSManager {
     // Log performance stats every 5 seconds
     const now = Date.now();
     if (now - this.performanceStats.lastStatsUpdate > 5000) {
-      logger.debug('ECS Performance Stats', {
-        service: 'ECSManager',
+      this.logger.debug("ECS Performance Stats", {
+        service: "ECSManager",
         frameTime: this.performanceStats.frameTime,
         entityCount: this.performanceStats.entityCount,
-        systemTimes: Object.fromEntries(this.performanceStats.systemUpdateTimes)
+        systemTimes: Object.fromEntries(
+          this.performanceStats.systemUpdateTimes,
+        ),
       });
       this.performanceStats.lastStatsUpdate = now;
     }
@@ -451,21 +451,21 @@ export class ECSManager {
     return { ...this.performanceStats };
   }
 
-  // Get active combats for API
   public getActiveCombats(): any[] {
-    const combatSystem = this.systems.get('Combat') as CombatSystem;
+    const combatSystem = this.systems.get("Combat") as CombatSystem;
     return combatSystem ? combatSystem.getActiveCombats() : [];
   }
 
-  // Utility methods
-  private calculateDistance(pos1: {x: number, y: number, z: number}, pos2: {x: number, y: number, z: number}): number {
+  private calculateDistance(
+    pos1: { x: number; y: number; z: number },
+    pos2: { x: number; y: number; z: number },
+  ): number {
     const dx = pos1.x - pos2.x;
     const dy = pos1.y - pos2.y;
     const dz = pos1.z - pos2.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
 
-  // Cleanup
   public async destroy(): Promise<void> {
     await this.stop();
     this.entities.clear();
@@ -474,5 +474,5 @@ export class ECSManager {
   }
 }
 
-// Singleton instance
+// Singleton instance (default: uses standard logger)
 export const ecsManager = ECSManager.getInstance();

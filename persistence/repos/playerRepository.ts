@@ -1,8 +1,10 @@
-import { IStorage } from '../../server/storage';
-import { Player, InsertPlayer, UpdatePlayer } from '../../shared/schema';
-import { logger } from '../../logging/logger';
-import { eventBus, GameEventMessage } from '../../cache/redisPubSub';
-import { v4 as uuidv4 } from 'uuid';
+import { IStorage } from "../../server/storage";
+import { Player, InsertPlayer, UpdatePlayer } from "../../shared/schema";
+import logger from "../../logging/logger";
+import { eventBus, GameEventMessage } from "../../cache/redisPubSub";
+import { v4 as uuidv4 } from "uuid";
+
+const log = logger({ serviceName: "PlayerRepository" });
 
 // Repository interface for DRY principle
 export interface IPlayerRepository {
@@ -21,16 +23,19 @@ class PlayerRepository implements IPlayerRepository {
 
   private setupEventListeners(): void {
     // Listen for player update events from unification layer
-    eventBus.subscribe('persistence.player_updates', this.handleUnificationUpdate.bind(this));
+    eventBus.subscribe(
+      "persistence.player_updates",
+      this.handleUnificationUpdate.bind(this),
+    );
   }
 
   async create(playerData: InsertPlayer): Promise<Player> {
     const requestId = uuidv4();
-    
-    logger.info('Creating new player', {
-      service: 'PlayerRepository',
+
+    log.info("Creating new player", {
+      service: "PlayerRepository",
       requestId,
-      username: playerData.username
+      username: playerData.username,
     });
 
     try {
@@ -39,28 +44,28 @@ class PlayerRepository implements IPlayerRepository {
       // Publish player created event
       const event: GameEventMessage = {
         id: uuidv4(),
-        type: 'player.created',
+        type: "player.created",
         playerId: player.id,
         regionId: player.regionId,
         data: { player },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
-      await eventBus.publish('world.player_events', event);
+      await eventBus.publish("world.player_events", event);
 
-      logger.info('Player created successfully', {
-        service: 'PlayerRepository',
+      log.info("Player created successfully", {
+        service: "PlayerRepository",
         requestId,
         playerId: player.id,
-        username: player.username
+        username: player.username,
       });
 
       return player;
     } catch (error) {
-      logger.error('Failed to create player', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to create player", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        username: playerData.username
+        username: playerData.username,
       });
       throw error;
     }
@@ -68,20 +73,20 @@ class PlayerRepository implements IPlayerRepository {
 
   async findById(id: string): Promise<Player | undefined> {
     const requestId = uuidv4();
-    
-    logger.debug('Finding player by ID', {
-      service: 'PlayerRepository',
+
+    log.debug("Finding player by ID", {
+      service: "PlayerRepository",
       requestId,
-      playerId: id
+      playerId: id,
     });
 
     try {
       return await this.storage.getPlayer(id);
     } catch (error) {
-      logger.error('Failed to find player by ID', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to find player by ID", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        playerId: id
+        playerId: id,
       });
       throw error;
     }
@@ -89,20 +94,20 @@ class PlayerRepository implements IPlayerRepository {
 
   async findByUsername(username: string): Promise<Player | undefined> {
     const requestId = uuidv4();
-    
-    logger.debug('Finding player by username', {
-      service: 'PlayerRepository',
+
+    log.debug("Finding player by username", {
+      service: "PlayerRepository",
       requestId,
-      username
+      username,
     });
 
     try {
       return await this.storage.getPlayerByUsername(username);
     } catch (error) {
-      logger.error('Failed to find player by username', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to find player by username", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        username
+        username,
       });
       throw error;
     }
@@ -110,12 +115,12 @@ class PlayerRepository implements IPlayerRepository {
 
   async update(id: string, updates: UpdatePlayer): Promise<Player | undefined> {
     const requestId = uuidv4();
-    
-    logger.info('Updating player', {
-      service: 'PlayerRepository',
+
+    log.info("Updating player", {
+      service: "PlayerRepository",
       requestId,
       playerId: id,
-      updates: Object.keys(updates)
+      updates: Object.keys(updates),
     });
 
     try {
@@ -125,28 +130,28 @@ class PlayerRepository implements IPlayerRepository {
         // Publish player updated event
         const event: GameEventMessage = {
           id: uuidv4(),
-          type: 'player.updated',
+          type: "player.updated",
           playerId: id,
           regionId: updatedPlayer.regionId,
           data: { updates, player: updatedPlayer },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
 
-        await eventBus.publish('world.player_events', event);
+        await eventBus.publish("world.player_events", event);
 
-        logger.info('Player updated successfully', {
-          service: 'PlayerRepository',
+        log.info("Player updated successfully", {
+          service: "PlayerRepository",
           requestId,
-          playerId: id
+          playerId: id,
         });
       }
 
       return updatedPlayer;
     } catch (error) {
-      logger.error('Failed to update player', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to update player", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        playerId: id
+        playerId: id,
       });
       throw error;
     }
@@ -154,20 +159,20 @@ class PlayerRepository implements IPlayerRepository {
 
   async findInRegion(regionId: string): Promise<Player[]> {
     const requestId = uuidv4();
-    
-    logger.debug('Finding players in region', {
-      service: 'PlayerRepository',
+
+    log.debug("Finding players in region", {
+      service: "PlayerRepository",
       requestId,
-      regionId
+      regionId,
     });
 
     try {
       return await this.storage.getPlayersInRegion(regionId);
     } catch (error) {
-      logger.error('Failed to find players in region', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to find players in region", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        regionId
+        regionId,
       });
       throw error;
     }
@@ -175,42 +180,42 @@ class PlayerRepository implements IPlayerRepository {
 
   async setOnlineStatus(playerId: string, isOnline: boolean): Promise<void> {
     const requestId = uuidv4();
-    
-    logger.info('Setting player online status', {
-      service: 'PlayerRepository',
+
+    log.info("Setting player online status", {
+      service: "PlayerRepository",
       requestId,
       playerId,
-      isOnline
+      isOnline,
     });
 
     try {
-      await this.storage.updatePlayer(playerId, { 
-        isOnline, 
-        lastActive: new Date() 
+      await this.storage.updatePlayer(playerId, {
+        isOnline,
+        lastActive: new Date(),
       });
 
       // Publish online status change event
       const event: GameEventMessage = {
         id: uuidv4(),
-        type: isOnline ? 'player.online' : 'player.offline',
+        type: isOnline ? "player.online" : "player.offline",
         playerId,
         data: { isOnline },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
-      await eventBus.publish('world.player_events', event);
+      await eventBus.publish("world.player_events", event);
 
-      logger.info('Player online status updated', {
-        service: 'PlayerRepository',
+      log.info("Player online status updated", {
+        service: "PlayerRepository",
         requestId,
         playerId,
-        isOnline
+        isOnline,
       });
     } catch (error) {
-      logger.error('Failed to set player online status', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to set player online status", error as Error, {
+        service: "PlayerRepository",
         requestId,
-        playerId
+        playerId,
       });
       throw error;
     }
@@ -219,19 +224,19 @@ class PlayerRepository implements IPlayerRepository {
   // Handle updates from unification layer (authoritative state changes)
   private async handleUnificationUpdate(message: GameEventMessage): void {
     const requestId = uuidv4();
-    
-    logger.debug('Handling unification update', {
-      service: 'PlayerRepository',
+
+    log.debug("Handling unification update", {
+      service: "PlayerRepository",
       requestId,
       messageId: message.id,
       type: message.type,
-      playerId: message.playerId
+      playerId: message.playerId,
     });
 
     try {
-      if (message.type === 'unification.player_state' && message.playerId) {
+      if (message.type === "unification.player_state" && message.playerId) {
         const { playerState } = message.data;
-        
+
         await this.storage.updatePlayer(message.playerId, {
           positionX: playerState.position?.x,
           positionY: playerState.position?.y,
@@ -240,21 +245,21 @@ class PlayerRepository implements IPlayerRepository {
           health: playerState.health,
           mana: playerState.mana,
           level: playerState.level,
-          experience: playerState.experience
+          experience: playerState.experience,
         });
 
-        logger.info('Player state synchronized from unification layer', {
-          service: 'PlayerRepository',
+        log.info("Player state synchronized from unification layer", {
+          service: "PlayerRepository",
           requestId,
-          playerId: message.playerId
+          playerId: message.playerId,
         });
       }
     } catch (error) {
-      logger.error('Failed to handle unification update', error as Error, {
-        service: 'PlayerRepository',
+      log.error("Failed to handle unification update", error as Error, {
+        service: "PlayerRepository",
         requestId,
         messageId: message.id,
-        playerId: message.playerId
+        playerId: message.playerId,
       });
     }
   }

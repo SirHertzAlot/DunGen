@@ -1,10 +1,10 @@
-import {
+import type {
+  ILogger,
   IEventBus,
   GameEventMessage,
   EventBusConfig,
   EventBusStatus,
-} from "./IEventBus";
-import { logger } from "../../logging/logger";
+} from "../IEventBus";
 import { v4 as uuidv4 } from "uuid";
 
 // In-memory event bus implementation - for development/testing
@@ -12,9 +12,9 @@ export class MemoryEventBus implements IEventBus {
   private handlers: Map<string, Set<(message: GameEventMessage) => void>>;
   private status: EventBusStatus;
   private config: EventBusConfig | null = null;
-  private logger = logger({ serviceName: "MemoryEventBus" });
+  public logger: ILogger;
 
-  constructor() {
+  constructor(logger: ILogger) {
     this.handlers = new Map();
     this.status = {
       connected: false,
@@ -24,6 +24,7 @@ export class MemoryEventBus implements IEventBus {
       lastActivity: new Date(),
       errors: [],
     };
+    this.logger = logger;
   }
 
   async initialize(config: EventBusConfig): Promise<void> {
@@ -62,7 +63,6 @@ export class MemoryEventBus implements IEventBus {
       // Get handlers for this channel
       const channelHandlers = this.handlers.get(channel);
       if (channelHandlers && channelHandlers.size > 0) {
-        // Process handlers asynchronously to avoid blocking
         setImmediate(() => {
           channelHandlers.forEach((handler) => {
             try {
@@ -163,7 +163,7 @@ export class MemoryEventBus implements IEventBus {
     await this.disconnect();
     await this.initialize(updatedConfig);
 
-    logger.info("Memory event bus config updated", {
+    this.logger.info("Memory event bus config updated", {
       service: "MemoryEventBus",
       instanceId: updatedConfig.metadata.instanceId,
     });

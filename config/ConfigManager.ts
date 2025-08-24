@@ -1,7 +1,9 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { logger } from '../logging/logger';
-import { v4 as uuidv4 } from 'uuid';
+import fs from "fs/promises";
+import path from "path";
+import logger from "../logging/logger";
+import { v4 as uuidv4 } from "uuid";
+
+const log = logger({ serviceName: "ConfigManager" });
 
 // Base configuration interface
 export interface BaseInfrastructureConfig {
@@ -14,7 +16,7 @@ export interface BaseInfrastructureConfig {
 
 // Infrastructure component interfaces
 export interface EventBusConfig extends BaseInfrastructureConfig {
-  type: 'redis' | 'memory' | 'nats' | 'rabbitmq';
+  type: "redis" | "memory" | "nats" | "rabbitmq";
   connectionString?: string;
   host?: string;
   port?: number;
@@ -26,14 +28,14 @@ export interface EventBusConfig extends BaseInfrastructureConfig {
 }
 
 export interface StorageConfig extends BaseInfrastructureConfig {
-  type: 'memory' | 'postgresql' | 'mongodb' | 'redis';
+  type: "memory" | "postgresql" | "mongodb" | "redis";
   connectionString?: string;
   poolSize?: number;
   maxConnections?: number;
 }
 
 export interface QueueConfig extends BaseInfrastructureConfig {
-  type: 'memory' | 'bullmq' | 'rabbitmq' | 'sqs';
+  type: "memory" | "bullmq" | "rabbitmq" | "sqs";
   redisUrl?: string;
   concurrency?: number;
   retryAttempts?: number;
@@ -41,8 +43,8 @@ export interface QueueConfig extends BaseInfrastructureConfig {
 }
 
 export interface LoggingConfig extends BaseInfrastructureConfig {
-  type: 'console' | 'winston' | 'pino' | 'bunyan';
-  level: 'error' | 'warn' | 'info' | 'debug';
+  type: "console" | "winston" | "pino" | "bunyan";
+  level: "error" | "warn" | "info" | "debug";
   transports?: string[];
   logDirectory?: string;
 }
@@ -133,9 +135,9 @@ export class ConfigManager {
   private environment: string;
   private watchers: Map<string, ((config: any) => void)[]> = new Map();
 
-  private constructor(configPath: string = './config/infrastructure.json') {
+  private constructor(configPath: string = "./config/infrastructure.json") {
     this.configPath = configPath;
-    this.environment = process.env.NODE_ENV || 'development';
+    this.environment = process.env.NODE_ENV || "development";
   }
 
   public static getInstance(configPath?: string): ConfigManager {
@@ -148,79 +150,88 @@ export class ConfigManager {
   // Load configuration from JSON file
   public async loadConfig(): Promise<InfrastructureConfiguration> {
     try {
-      const configFile = await fs.readFile(this.configPath, 'utf-8');
+      const configFile = await fs.readFile(this.configPath, "utf-8");
       const rawConfig = JSON.parse(configFile);
-      
+
       // Resolve environment variables
       this.config = this.resolveEnvironmentVariables(rawConfig);
-      
-      logger.info('Configuration loaded successfully', {
-        service: 'ConfigManager',
+
+      log.info("Configuration loaded successfully", {
+        service: "ConfigManager",
         environment: this.environment,
-        configPath: this.configPath
+        configPath: this.configPath,
       });
 
       return this.config;
     } catch (error) {
-      logger.error('Failed to load configuration', error as Error, {
-        service: 'ConfigManager',
-        configPath: this.configPath
+      log.error("Failed to load configuration", error as Error, {
+        service: "ConfigManager",
+        configPath: this.configPath,
       });
       throw error;
     }
   }
 
   // Hot-swap configuration via API
-  public async updateConfig(updates: Partial<InfrastructureConfiguration>): Promise<void> {
+  public async updateConfig(
+    updates: Partial<InfrastructureConfiguration>,
+  ): Promise<void> {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
 
     const updatedConfig = this.mergeConfig(this.config, updates);
-    
+
     // Validate the updated configuration
     this.validateConfiguration(updatedConfig);
 
     // Save to file
     await this.saveConfig(updatedConfig);
-    
+
     // Update in-memory config
     this.config = updatedConfig;
 
     // Notify watchers
-    this.notifyWatchers('config.updated', updatedConfig);
+    this.notifyWatchers("config.updated", updatedConfig);
 
-    logger.info('Configuration updated successfully', {
-      service: 'ConfigManager',
-      updateId: uuidv4()
+    log.info("Configuration updated successfully", {
+      service: "ConfigManager",
+      updateId: uuidv4(),
     });
   }
 
   // Get configuration for specific infrastructure type
   public getInfrastructureConfig<T>(type: string, environment?: string): T {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
 
     const env = environment || this.environment;
     const infraConfig = (this.config.infrastructure as any)[type];
-    
+
     if (!infraConfig || !infraConfig[env]) {
-      throw new Error(`Configuration not found for ${type} in ${env} environment`);
+      throw new Error(
+        `Configuration not found for ${type} in ${env} environment`,
+      );
     }
 
     return infraConfig[env] as T;
   }
 
   // Get unification container configuration
-  public getUnificationContainerConfig(regionId: string): UnificationContainerConfig {
+  public getUnificationContainerConfig(
+    regionId: string,
+  ): UnificationContainerConfig {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
 
-    const containerConfig = this.config.infrastructure.unificationContainers[regionId];
+    const containerConfig =
+      this.config.infrastructure.unificationContainers[regionId];
     if (!containerConfig) {
-      throw new Error(`Unification container configuration not found for region: ${regionId}`);
+      throw new Error(
+        `Unification container configuration not found for region: ${regionId}`,
+      );
     }
 
     return containerConfig;
@@ -229,7 +240,7 @@ export class ConfigManager {
   // Get API configuration
   public getApiConfig(): ApiConfig {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
     return this.config.api;
   }
@@ -237,7 +248,7 @@ export class ConfigManager {
   // Get monitoring configuration
   public getMonitoringConfig(): MonitoringConfig {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
     return this.config.monitoring;
   }
@@ -252,12 +263,12 @@ export class ConfigManager {
 
   // Add new infrastructure node
   public async addInfrastructureNode(
-    type: string, 
-    environment: string, 
-    config: any
+    type: string,
+    environment: string,
+    config: any,
   ): Promise<void> {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
 
     if (!(this.config.infrastructure as any)[type]) {
@@ -269,37 +280,40 @@ export class ConfigManager {
       metadata: {
         ...config.metadata,
         instanceId: config.metadata?.instanceId || uuidv4(),
-        addedAt: new Date().toISOString()
-      }
+        addedAt: new Date().toISOString(),
+      },
     };
 
     await this.saveConfig(this.config);
-    this.notifyWatchers('node.added', { type, environment, config });
+    this.notifyWatchers("node.added", { type, environment, config });
 
-    logger.info('Infrastructure node added', {
-      service: 'ConfigManager',
+    log.info("Infrastructure node added", {
+      service: "ConfigManager",
       type,
       environment,
-      instanceId: config.metadata?.instanceId
+      instanceId: config.metadata?.instanceId,
     });
   }
 
   // Remove infrastructure node
-  public async removeInfrastructureNode(type: string, environment: string): Promise<void> {
+  public async removeInfrastructureNode(
+    type: string,
+    environment: string,
+  ): Promise<void> {
     if (!this.config) {
-      throw new Error('Configuration not loaded');
+      throw new Error("Configuration not loaded");
     }
 
     if ((this.config.infrastructure as any)[type]?.[environment]) {
       delete (this.config.infrastructure as any)[type][environment];
-      
-      await this.saveConfig(this.config);
-      this.notifyWatchers('node.removed', { type, environment });
 
-      logger.info('Infrastructure node removed', {
-        service: 'ConfigManager',
+      await this.saveConfig(this.config);
+      this.notifyWatchers("node.removed", { type, environment });
+
+      log.info("Infrastructure node removed", {
+        service: "ConfigManager",
         type,
-        environment
+        environment,
       });
     }
   }
@@ -307,13 +321,17 @@ export class ConfigManager {
   // Private methods
   private resolveEnvironmentVariables(config: any): any {
     const resolved = JSON.parse(JSON.stringify(config));
-    
+
     const resolve = (obj: any): any => {
       for (const key in obj) {
-        if (typeof obj[key] === 'string' && obj[key].startsWith('${') && obj[key].endsWith('}')) {
+        if (
+          typeof obj[key] === "string" &&
+          obj[key].startsWith("${") &&
+          obj[key].endsWith("}")
+        ) {
           const envVar = obj[key].slice(2, -1);
           obj[key] = process.env[envVar] || obj[key];
-        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        } else if (typeof obj[key] === "object" && obj[key] !== null) {
           obj[key] = resolve(obj[key]);
         }
       }
@@ -324,41 +342,41 @@ export class ConfigManager {
   }
 
   private mergeConfig(
-    base: InfrastructureConfiguration, 
-    updates: Partial<InfrastructureConfiguration>
+    base: InfrastructureConfiguration,
+    updates: Partial<InfrastructureConfiguration>,
   ): InfrastructureConfiguration {
     return {
       infrastructure: {
         ...base.infrastructure,
-        ...updates.infrastructure
+        ...updates.infrastructure,
       },
       api: {
         ...base.api,
-        ...updates.api
+        ...updates.api,
       },
       monitoring: {
         ...base.monitoring,
-        ...updates.monitoring
-      }
+        ...updates.monitoring,
+      },
     };
   }
 
   private validateConfiguration(config: InfrastructureConfiguration): void {
     // Basic validation - can be extended
     if (!config.infrastructure) {
-      throw new Error('Infrastructure configuration is required');
+      throw new Error("Infrastructure configuration is required");
     }
 
     if (!config.api) {
-      throw new Error('API configuration is required');
+      throw new Error("API configuration is required");
     }
 
     if (!config.monitoring) {
-      throw new Error('Monitoring configuration is required');
+      throw new Error("Monitoring configuration is required");
     }
 
-    logger.debug('Configuration validation passed', {
-      service: 'ConfigManager'
+    log.debug("Configuration validation passed", {
+      service: "ConfigManager",
     });
   }
 
@@ -367,18 +385,17 @@ export class ConfigManager {
       await fs.writeFile(
         this.configPath,
         JSON.stringify(config, null, 2),
-        'utf-8'
+        "utf-8",
       );
-      
-      logger.debug('Configuration saved to file', {
-        service: 'ConfigManager',
-        configPath: this.configPath
-      });
 
+      log.debug("Configuration saved to file", {
+        service: "ConfigManager",
+        configPath: this.configPath,
+      });
     } catch (error) {
-      logger.error('Failed to save configuration', error as Error, {
-        service: 'ConfigManager',
-        configPath: this.configPath
+      log.error("Failed to save configuration", error as Error, {
+        service: "ConfigManager",
+        configPath: this.configPath,
       });
       throw error;
     }
@@ -387,13 +404,13 @@ export class ConfigManager {
   private notifyWatchers(event: string, data: any): void {
     const watchers = this.watchers.get(event);
     if (watchers) {
-      watchers.forEach(callback => {
+      watchers.forEach((callback) => {
         try {
           callback(data);
         } catch (error) {
-          logger.error('Error in configuration watcher', error as Error, {
-            service: 'ConfigManager',
-            event
+          log.error("Error in configuration watcher", error as Error, {
+            service: "ConfigManager",
+            event,
           });
         }
       });

@@ -68,27 +68,29 @@ app.use((req, res, next) => {
       reusePort: true,
     },
     async () => {
-      log(`serving on port ${port}`);
+      const logger  = (await import("../logging/logger")).default;
+      const log = logger({ serviceName: "MainServer" });
+      
+      log.info(`serving on port ${port}`);
 
       // Initialize ECS and Unity systems after server starts
       try {
         const { ecsManager } = await import("../game/ecs/ECSManager");
         const { unityBridge } = await import("../game/unity/UnityBridge");
-        const { log } = await import("../logging/logger");
-        const { etlService } = await import("..etl/index");
+        const { etlService } = await import("../etl/index");
 
         // Initialize Unity communication bridge on port 8080
         await unityBridge.initialize(8080);
 
         // Start ECS manager with 60fps updates
-        await ecsManager.start();
+        await ecsManager.start(log);
 
         // Initialize ETL service
-        await etlService.initialize();
+        await etlService.initialize(log);
 
-        log(`[ecs] Unity ECS systems initialized - WebSocket on port 8080`);
+        log.info(`[ecs] Unity ECS systems initialized - WebSocket on port 8080`);
       } catch (error) {
-        console.error(`[ecs] Failed to initialize game systems:`, error);
+        log.error(`[ecs] Failed to initialize game systems:`, error);
       }
     },
   );

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { PlayerRepository } from "../persistence/repos/playerRepository";
 import { gameEventQueue } from "../etl/queues/gameEventQueue";
-import { logger } from "../logging/logger";
+import logger from "../logging/logger";
 import {
   insertPlayerSchema,
   updatePlayerSchema,
@@ -11,20 +11,16 @@ import {
   combatEventSchema,
   chatEventSchema,
 } from "../shared/schema";
+import { healthCheckerMiddleware } from "../utils/healthChecker";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const playerRepo = new PlayerRepository(storage);
+  const log = logger({ serviceName: "MainServer-API" });
 
   // Health check endpoint
-  app.get("/api/health", (req, res) => {
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      service: "MMORPG-Backend",
-    });
-  });
+  app.get("/api/health", healthCheckerMiddleware);
 
   // Player endpoints
   app.post("/api/players", async (req, res) => {
@@ -39,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const player = await playerRepo.create(playerData);
 
-      logger.info("Player created via API", {
+      log.info("Player created via API", {
         service: "API",
         requestId,
         playerId: player.id,
@@ -51,7 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { ...player, passwordHash: undefined },
       });
     } catch (error) {
-      logger.error("Failed to create player via API", error as Error, {
+      log.error("Failed to create player via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -82,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { ...player, passwordHash: undefined },
       });
     } catch (error) {
-      logger.error("Failed to get player via API", error as Error, {
+      log.error("Failed to get player via API", error as Error, {
         service: "API",
         requestId,
         playerId: req.params.id,
@@ -112,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      logger.info("Player updated via API", {
+      log.info("Player updated via API", {
         service: "API",
         requestId,
         playerId: req.params.id,
@@ -123,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { ...updatedPlayer, passwordHash: undefined },
       });
     } catch (error) {
-      logger.error("Failed to update player via API", error as Error, {
+      log.error("Failed to update player via API", error as Error, {
         service: "API",
         requestId,
         playerId: req.params.id,
@@ -144,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const regions = await storage.getAllRegions();
 
-      logger.debug("Regions fetched via API", {
+      log.debug("Regions fetched via API", {
         service: "API",
         requestId,
         regionCount: regions.length,
@@ -155,7 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: regions,
       });
     } catch (error) {
-      logger.error("Failed to get regions via API", error as Error, {
+      log.error("Failed to get regions via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -173,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const players = await playerRepo.findInRegion(req.params.regionId);
 
-      logger.debug("Players in region fetched via API", {
+      log.debug("Players in region fetched via API", {
         service: "API",
         requestId,
         regionId: req.params.regionId,
@@ -185,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: players.map((p) => ({ ...p, passwordHash: undefined })),
       });
     } catch (error) {
-      logger.error("Failed to get players in region via API", error as Error, {
+      log.error("Failed to get players in region via API", error as Error, {
         service: "API",
         requestId,
         regionId: req.params.regionId,
@@ -212,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         regionId: req.body.regionId,
       });
 
-      logger.info("Player movement queued via API", {
+      log.info("Player movement queued via API", {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -223,15 +219,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Movement queued for processing",
       });
     } catch (error) {
-      logger.error(
-        "Failed to process player movement via API",
-        error as Error,
-        {
-          service: "API",
-          requestId,
-          playerId: req.params.playerId,
-        },
-      );
+      log.error("Failed to process player movement via API", error as Error, {
+        service: "API",
+        requestId,
+        playerId: req.params.playerId,
+      });
 
       res.status(400).json({
         success: false,
@@ -254,7 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         regionId: req.body.regionId,
       });
 
-      logger.info("Player combat queued via API", {
+      log.info("Player combat queued via API", {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -265,7 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Combat action queued for processing",
       });
     } catch (error) {
-      logger.error("Failed to process player combat via API", error as Error, {
+      log.error("Failed to process player combat via API", error as Error, {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -292,7 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         regionId: req.body.regionId,
       });
 
-      logger.info("Player chat queued via API", {
+      log.info("Player chat queued via API", {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -303,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Chat message queued for processing",
       });
     } catch (error) {
-      logger.error("Failed to process player chat via API", error as Error, {
+      log.error("Failed to process player chat via API", error as Error, {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -340,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const session = await storage.createSession(sessionData);
       await playerRepo.setOnlineStatus(req.params.playerId, true);
 
-      logger.info("Player session created via API", {
+      log.info("Player session created via API", {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -352,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: session,
       });
     } catch (error) {
-      logger.error("Failed to create session via API", error as Error, {
+      log.error("Failed to create session via API", error as Error, {
         service: "API",
         requestId,
         playerId: req.params.playerId,
@@ -371,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.endSession(req.params.sessionId);
 
-      logger.info("Session ended via API", {
+      log.info("Session ended via API", {
         service: "API",
         requestId,
         sessionId: req.params.sessionId,
@@ -382,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Session ended successfully",
       });
     } catch (error) {
-      logger.error("Failed to end session via API", error as Error, {
+      log.error("Failed to end session via API", error as Error, {
         service: "API",
         requestId,
         sessionId: req.params.sessionId,
@@ -405,7 +397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       const status = await infrastructureManager.getSystemStatus();
 
-      logger.debug("Infrastructure status retrieved via API", {
+      log.debug("Infrastructure status retrieved via API", {
         service: "API",
         requestId,
       });
@@ -415,14 +407,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: status,
       });
     } catch (error) {
-      logger.error(
-        "Failed to get infrastructure status via API",
-        error as Error,
-        {
-          service: "API",
-          requestId,
-        },
-      );
+      log.error("Failed to get infrastructure status via API", error as Error, {
+        service: "API",
+        requestId,
+      });
 
       res.status(500).json({
         success: false,
@@ -453,7 +441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         config,
       );
 
-      logger.info("Infrastructure node reconfigured via API", {
+      log.info("Infrastructure node reconfigured via API", {
         service: "API",
         requestId,
         nodeType,
@@ -466,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { nodeType, environment },
       });
     } catch (error) {
-      logger.error(
+      log.error(
         "Failed to reconfigure infrastructure node via API",
         error as Error,
         {
@@ -506,7 +494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         componentType,
       );
 
-      logger.info("Infrastructure component swapped via API", {
+      log.info("Infrastructure component swapped via API", {
         service: "API",
         requestId,
         componentName,
@@ -519,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { componentName, componentType },
       });
     } catch (error) {
-      logger.error(
+      log.error(
         "Failed to swap infrastructure component via API",
         error as Error,
         {
@@ -555,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: gameObject,
       });
     } catch (error) {
-      logger.error("Failed to get game object via API", error as Error, {
+      log.error("Failed to get game object via API", error as Error, {
         service: "API",
         requestId,
         gameObjectId: req.params.id,
@@ -575,7 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const searchParams = req.query;
       const gameObjects = await storage.findGameObjects(searchParams as any);
 
-      logger.debug("Game objects searched via API", {
+      log.debug("Game objects searched via API", {
         service: "API",
         requestId,
         resultsCount: gameObjects.length,
@@ -588,7 +576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: gameObjects.length,
       });
     } catch (error) {
-      logger.error("Failed to search game objects via API", error as Error, {
+      log.error("Failed to search game objects via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -607,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate game object data here if needed
       const gameObject = await storage.createGameObject(req.body);
 
-      logger.info("Game object created via API", {
+      log.info("Game object created via API", {
         service: "API",
         requestId,
         gameObjectId: gameObject.id,
@@ -619,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: gameObject,
       });
     } catch (error) {
-      logger.error("Failed to create game object via API", error as Error, {
+      log.error("Failed to create game object via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -639,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const events = await storage.getEventsByTrace(req.params.traceId);
 
-      logger.debug("Events traced via API", {
+      log.debug("Events traced via API", {
         service: "API",
         requestId,
         traceId: req.params.traceId,
@@ -652,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: events.length,
       });
     } catch (error) {
-      logger.error("Failed to trace events via API", error as Error, {
+      log.error("Failed to trace events via API", error as Error, {
         service: "API",
         requestId,
         traceId: req.params.traceId,
@@ -687,7 +675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      logger.error("Failed to get ECS status via API", error as Error, {
+      log.error("Failed to get ECS status via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -722,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         race: race || "human",
       });
 
-      logger.info("Player character created via API", {
+      log.info("Player character created via API", {
         service: "API",
         requestId,
         entityId,
@@ -735,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { entityId, playerId, characterName },
       });
     } catch (error) {
-      logger.error("Failed to create character via API", error as Error, {
+      log.error("Failed to create character via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -769,7 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         faction,
       });
 
-      logger.info("NPC created via API", {
+      log.info("NPC created via API", {
         service: "API",
         requestId,
         entityId,
@@ -782,7 +770,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: { entityId, npcType, challengeRating },
       });
     } catch (error) {
-      logger.error("Failed to create NPC via API", error as Error, {
+      log.error("Failed to create NPC via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -816,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (success) {
-        logger.info("Attack initiated via API", {
+        log.info("Attack initiated via API", {
           service: "API",
           requestId,
           attackerId,
@@ -835,7 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      logger.error("Failed to initiate attack via API", error as Error, {
+      log.error("Failed to initiate attack via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -880,7 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      logger.error("Failed to move entity via API", error as Error, {
+      log.error("Failed to move entity via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -925,7 +913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (error) {
-      logger.error("Failed to cast spell via API", error as Error, {
+      log.error("Failed to cast spell via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -950,7 +938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         count: activeCombats.length,
       });
     } catch (error) {
-      logger.error("Failed to get active combats via API", error as Error, {
+      log.error("Failed to get active combats via API", error as Error, {
         service: "API",
         requestId,
       });
@@ -998,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      logger.error("Failed to get terrain chunk via API", error as Error, {
+      log.error("Failed to get terrain chunk via API", error as Error, {
         service: "API",
         requestId,
         chunkX: req.params.x,
@@ -1066,7 +1054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      logger.error("Failed to get region chunks via API", error as Error, {
+      log.error("Failed to get region chunks via API", error as Error, {
         service: "API",
         requestId,
         region: [
@@ -1147,7 +1135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .png()
         .toBuffer();
 
-      logger.info("Generated heightmap PNG", {
+      log.info("Generated heightmap PNG", {
         service: "API",
         requestId,
         chunkId: chunk.id,
@@ -1167,16 +1155,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       res.send(pngBuffer);
     } catch (error) {
-      logger.error(
-        "Failed to generate heightmap image via API",
-        error as Error,
-        {
-          service: "API",
-          requestId,
-          chunkX: req.params.x,
-          chunkZ: req.params.z,
-        },
-      );
+      log.error("Failed to generate heightmap image via API", error as Error, {
+        service: "API",
+        requestId,
+        chunkX: req.params.x,
+        chunkZ: req.params.z,
+      });
 
       res.status(500).json({
         success: false,

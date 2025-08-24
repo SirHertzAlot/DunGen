@@ -1,6 +1,6 @@
 import Redis from "ioredis";
 import { EventEmitter } from "events";
-import { logger } from "../../logging/logger";
+import logger from "../../logging/logger";
 
 /**
  * Event Bus for real-time pub/sub messaging across the MMORPG backend
@@ -8,7 +8,7 @@ import { logger } from "../../logging/logger";
  */
 
 export class EventBus extends EventEmitter {
-  private logger = logger({ serviceName: "PubSub-EventBus" });
+  private logger: ILogger;
   private publisher: Redis;
   private subscriber: Redis;
   private isInitialized = false;
@@ -20,8 +20,9 @@ export class EventBus extends EventEmitter {
     activeChannels: 0,
   };
 
-  constructor() {
+  constructor(logger: ILogger) {
     super();
+    this.logger = logger;
     this.setMaxListeners(1000); // Allow many listeners for high concurrency
 
     this.publisher = new Redis(
@@ -368,4 +369,5 @@ export class EventBus extends EventEmitter {
   }
 }
 
-export const eventBus = new EventBus();
+const log = logger({ serviceName: "EventBus" });
+export const eventBus = new EventBus(log);
