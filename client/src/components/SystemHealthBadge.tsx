@@ -24,7 +24,7 @@ interface Props {
  *     { success: true }
  * - Renders a small Badge with appropriate variant and label.
  */
-export default function SystemHealthBadge({
+export function SystemHealthBadge({
   endpoint = "/api/health",
   pollIntervalMs = 2000,
 }: Props) {
@@ -61,3 +61,5 @@ export default function SystemHealthBadge({
 
   return <Badge variant={variant}>{label}</Badge>;
 }
+
+export default SystemHealthBadge;
