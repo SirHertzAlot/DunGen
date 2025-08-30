@@ -1,0 +1,34 @@
+2025-08-29 18:52:10 - WARNING: npm run dev server is not running. Attempting to start...
+2025-08-29 18:52:10 - SUCCESS: npm run dev server started successfully.
+2025-08-29 18:52:10 - All services are running.
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+6:52:13 PM [express] serving on port 5000
+info: Server started successfully {"timestamp":"2025-08-29T18:52:13.473Z"}
+{"timestamp":"2025-08-29T18:52:13.518Z","level":"info","message":"Configuration loaded successfully","requestId":"0c220b69-03a9-48a0-b2fe-96bc228ed3e1","service":"ConfigManager","environment":"development","configPath":"./config/infrastructure.json"}
+{"timestamp":"2025-08-29T18:52:13.542Z","level":"info","message":"Memory event bus initialized","requestId":"9bd77726-b8cd-4b29-baf2-5d95fd3b198b","service":"MemoryEventBus","instanceId":"dev-eventbus-001","channels":8}
+{"timestamp":"2025-08-29T18:52:13.543Z","level":"info","message":"Event bus initialized","requestId":"6f3c37ec-8027-46d5-b17a-01f55850c4c0","service":"InfrastructureManager","eventBusType":"memory","instanceId":"dev-eventbus-001"}
+{"timestamp":"2025-08-29T18:52:13.543Z","level":"info","message":"Infrastructure manager initialized successfully","requestId":"176d2c6e-86d6-447d-972d-555ac8421890","service":"InfrastructureManager","componentsCount":1}
+{"timestamp":"2025-08-29T18:52:13.544Z","level":"info","message":"Subscribed to memory bus channel","requestId":"4c0e2f06-4314-4e8b-b265-82f60da5d81e","service":"MemoryEventBus","channel":"persistence.player_updates","handlerCount":1}
+Error:   Failed to scan for dependencies from entries:
+  /workspaces/DunGen/client/index.html
+
+  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mExpected identifier but found "/"[0m
+
+    client/src/pages/Settings.tsx:11:7:
+[37m      11 │       <[32m/[37mdiv>
+         ╵        [32m^[0m
+
+
+    at failureErrorWithLog (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:1472:15)
+    at /workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:945:25
+    at runOnEndCallbacks (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:1315:45)
+    at buildResponseToResult (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:943:7)
+    at /workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:955:9
+    at new Promise (<anonymous>)
+    at requestCallbacks.on-end (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:954:54)
+    at handleRequest (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:647:17)
+    at handleIncomingPacket (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:672:7)
+    at Socket.readFromStdout (/workspaces/DunGen/node_modules/vite/node_modules/esbuild/lib/main.js:600:7)

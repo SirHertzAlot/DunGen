@@ -1,4 +1,18 @@
-import { useQuery } from '@tanstack/react-query';
+/**
+ * Dashboard Page
+ * 
+ * This page serves as the main interface for monitoring the MMORPG backend system.
+ * It includes system statistics, region data, player management, and troubleshooting tools.
+ * 
+ * Tabs:
+ * - Regions: Displays region status and player distribution.
+ * - Players: Provides tools for managing player data.
+ * - System: Shows system performance and storage details.
+ * - Network: Monitors network and API connectivity.
+ * - Troubleshooting: Displays logs and helps identify issues.
+ */
+
+import { useApiQuery } from '@/hooks/useApiQuery';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Globe, Cpu, Network } from 'lucide-react';
 import { Region, SystemStats } from '@/types/dashboard';
@@ -9,24 +23,51 @@ import { SystemInfoCards } from '@/components/dashboard/SystemInfoCards';
 import { NetworkStatusCards } from '@/components/dashboard/NetworkStatusCards';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SystemHealthBadge } from '@/components/dashboard/SystemHealthBadge';
+import { Troubleshooting } from '@/components/dashboard/Troubleshooting';
 
 export default function Dashboard() {
-  // Query for regions data
-  const { data: regionsResponse, isLoading: regionsLoading } = useQuery<{success: boolean, data: Region[]}>({
-    queryKey: ['/api/regions'],
-    refetchInterval: 5000 // Refresh every 5 seconds
+  /**
+   * Fetches region data from the backend API.
+   * 
+   * @returns {Region[]} An array of region objects containing player and server data.
+   */
+  const { data: regionsResponse, isLoading: regionsLoading } = useApiQuery<{ success: boolean; data: Region[] }>({
+    queryKey: ['/api/regions'], // Explicitly include queryKey
+    refetchInterval: 5000,
   });
 
-  // Query for system health
-  const { data: healthResponse, isLoading: healthLoading, isError: healthError } = useQuery<{status: string, timestamp: string, service: string}>({
-    queryKey: ['/api/health'],
-    refetchInterval: 2000 // Refresh every 2 seconds
+  /**
+   * Fetches system health data from the backend API.
+   * 
+   * @returns {Object} An object containing the system health status, service name, and timestamp.
+   */
+  const { data: healthResponse, isLoading: healthLoading, isError: healthError } = useApiQuery<
+    { id: string; status: string; service: string; message: string; timestamp: string } | 
+    { id: string; status: string; service: string; message: string; timestamp: string }[]
+  >({
+    queryKey: ['/api/health'], // Explicitly include queryKey
+    refetchInterval: 2000,
   });
 
   const regions = regionsResponse?.data || [];
-  const systemHealth = !healthLoading && !healthError && healthResponse?.status === 'ok';
 
-  // Calculate system statistics
+  /**
+   * Determine overall system health.
+   * If `healthResponse` is an array, check all services.
+   * If it's a single object, check its status.
+   */
+  const systemHealth = !healthLoading && !healthError && (
+    Array.isArray(healthResponse)
+      ? healthResponse.every((service) => service.status === 'ok')
+      : healthResponse?.status === 'ok'
+  );
+
+  /**
+   * Calculates system statistics based on region data.
+   * 
+   * @returns {SystemStats} An object containing total players, online players, total regions, active regions, uptime, and events processed.
+   */
   const systemStats: SystemStats = {
     totalPlayers: regions.reduce((sum, region) => sum + region.playerCount, 0),
     onlinePlayers: regions.reduce((sum, region) => sum + region.playerCount, 0),
@@ -36,6 +77,12 @@ export default function Dashboard() {
     eventProcessed: Math.floor(Math.random() * 10000) + 50000 // Mock events processed
   };
 
+  /**
+   * Formats uptime in milliseconds into a human-readable string.
+   * 
+   * @param {number} ms - The uptime in milliseconds.
+   * @returns {string} A formatted string in the format "Xh Ym".
+   */
   const formatUptime = (ms: number) => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
@@ -49,10 +96,13 @@ export default function Dashboard() {
           <div className="text-center text-muted-foreground">Checking system health...</div>
         ) : healthError ? (
           <div className="text-center text-destructive">Failed to load system health</div>
-        ) : (
-          <DashboardHeader systemHealth={systemHealth} />
-        )}
-        
+        ) : healthResponse ? (
+          <>
+            <DashboardHeader systemHealth={systemHealth} />
+            <SystemHealthBadge health={Array.isArray(healthResponse) ? healthResponse : [healthResponse]} isLoading={healthLoading} />
+          </>
+        ) : null}
+
         <SystemStatsCards stats={systemStats} formatUptime={formatUptime} />
 
         {/* Main Content Tabs */}
@@ -107,6 +157,10 @@ export default function Dashboard() {
 
           <TabsContent value="network">
             <NetworkStatusCards />
+          </TabsContent>
+
+          <TabsContent value="troubleshooting">
+            <Troubleshooting />
           </TabsContent>
         </Tabs>
       </div>
