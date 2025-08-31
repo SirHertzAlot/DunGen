@@ -1,22 +1,8 @@
-import Redis from 'ioredis';
-import { logger } from '../logging/logger';
-import { v4 as uuidv4 } from 'uuid';
-
-// Event types for type safety
-export interface GameEventMessage {
-  id: string;
-  type: string;
-  playerId?: string;
-  regionId?: string;
-  data: any;
-  timestamp: number;
-}
-
-export interface IEventBus {
-  publish(channel: string, message: GameEventMessage): Promise<void>;
-  subscribe(channel: string, handler: (message: GameEventMessage) => void): Promise<void>;
-  disconnect(): Promise<void>;
-}
+import Redis from "ioredis";
+import { logger } from "../logthis.logger";
+import { v4 as uuidv4 } from "uuid";
+import { IEventBus } from "./IEventBus";
+import type { GameEventMessage } from "./IEventBus";
 
 class RedisEventBus implements IEventBus {
   private publisher: Redis;
@@ -25,11 +11,11 @@ class RedisEventBus implements IEventBus {
 
   constructor() {
     const redisConfig = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: process.env.REDIS_HOST || "localhost",
+      port: parseInt(process.env.REDIS_PORT || "6379"),
       retryDelayOnFailover: 100,
       maxRetriesPerRequest: 3,
-      lazyConnect: true
+      lazyConnect: true,
     };
 
     this.publisher = new Redis(redisConfig);
@@ -40,23 +26,31 @@ class RedisEventBus implements IEventBus {
   }
 
   private setupEventListeners(): void {
-    this.publisher.on('connect', () => {
-      logger.info('Redis publisher connected', { service: 'RedisEventBus' });
+    this.publisher.on("connect", () => {
+      this.logger.info("Redis publisher connected", {
+        service: "RedisEventBus",
+      });
     });
 
-    this.subscriber.on('connect', () => {
-      logger.info('Redis subscriber connected', { service: 'RedisEventBus' });
+    this.subscriber.on("connect", () => {
+      this.logger.info("Redis subscriber connected", {
+        service: "RedisEventBus",
+      });
     });
 
-    this.publisher.on('error', (error) => {
-      logger.error('Redis publisher error', error, { service: 'RedisEventBus' });
+    this.publisher.on("error", (error) => {
+      this.logger.error("Redis publisher error", error, {
+        service: "RedisEventBus",
+      });
     });
 
-    this.subscriber.on('error', (error) => {
-      logger.error('Redis subscriber error', error, { service: 'RedisEventBus' });
+    this.subscriber.on("error", (error) => {
+      this.logger.error("Redis subscriber error", error, {
+        service: "RedisEventBus",
+      });
     });
 
-    this.subscriber.on('message', (channel, message) => {
+    this.subscriber.on("message", (channel, message) => {
       try {
         const parsedMessage: GameEventMessage = JSON.parse(message);
         const handler = this.handlers.get(channel);
@@ -64,10 +58,10 @@ class RedisEventBus implements IEventBus {
           handler(parsedMessage);
         }
       } catch (error) {
-        logger.error('Error processing Redis message', error as Error, {
-          service: 'RedisEventBus',
+        this.logger.error("Error processing Redis message", error as Error, {
+          service: "RedisEventBus",
           channel,
-          message
+          message,
         });
       }
     });
@@ -78,40 +72,41 @@ class RedisEventBus implements IEventBus {
       const messageWithId = {
         ...message,
         id: message.id || uuidv4(),
-        timestamp: message.timestamp || Date.now()
+        timestamp: message.timestamp || Date.now(),
       };
 
       await this.publisher.publish(channel, JSON.stringify(messageWithId));
-      
-      logger.debug('Message published to Redis', {
-        service: 'RedisEventBus',
+      this.logger.debug("Message published to Redis", {
+        service: "RedisEventBus",
         channel,
         messageId: messageWithId.id,
-        type: messageWithId.type
+        type: messageWithId.type,
       });
     } catch (error) {
-      logger.error('Error publishing to Redis', error as Error, {
-        service: 'RedisEventBus',
+      this.logger.error("Error publishing to Redis", error as Error, {
+        service: "RedisEventBus",
         channel,
-        messageType: message.type
+        messageType: message.type,
       });
       throw error;
     }
   }
 
-  async subscribe(channel: string, handler: (message: GameEventMessage) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    handler: (message: GameEventMessage) => void,
+  ): Promise<void> {
     try {
       await this.subscriber.subscribe(channel);
       this.handlers.set(channel, handler);
-      
-      logger.info('Subscribed to Redis channel', {
-        service: 'RedisEventBus',
-        channel
+      this.logger.info("Subscribed to Redis channel", {
+        service: "RedisEventBus",
+        channel,
       });
     } catch (error) {
-      logger.error('Error subscribing to Redis channel', error as Error, {
-        service: 'RedisEventBus',
-        channel
+      this.logger.error("Error subscribing to Redis channel", error as Error, {
+        service: "RedisEventBus",
+        channel,
       });
       throw error;
     }
@@ -120,10 +115,9 @@ class RedisEventBus implements IEventBus {
   async disconnect(): Promise<void> {
     await Promise.all([
       this.publisher.disconnect(),
-      this.subscriber.disconnect()
+      this.subscriber.disconnect(),
     ]);
-    
-    logger.info('Redis connections closed', { service: 'RedisEventBus' });
+    this.logger.info("Redis connections closed", { service: "RedisEventBus" });
   }
 }
 
@@ -141,28 +135,33 @@ class LegacyEventBusWrapper {
 
   private async initialize(): Promise<void> {
     try {
-      const { infrastructureManager } = await import('../config/InfrastructureManager');
+      const { infrastructureManager } = await import(
+        "../config/InfrastructureManager"
+      );
       await infrastructureManager.initialize();
-      this.eventBus = infrastructureManager.getComponent('eventBus');
+      this.eventBus = infrastructureManager.getComponent("eventBus");
       this.initialized = true;
     } catch (error) {
-      console.error('Failed to initialize event bus via infrastructure manager, using fallback:', error);
-      
+      console.error(
+        "Failed to initialize event bus via infrastructure manager, using fallback:",
+        error,
+      );
+
       // Fallback to in-memory implementation
-      const { MemoryEventBus } = await import('./interfaces/MemoryEventBus');
+      const { MemoryEventBus } = await import("./interfaces/MemoryEventBus");
       this.eventBus = new MemoryEventBus();
       await this.eventBus.initialize({
-        type: 'memory',
+        type: "memory",
         channels: [
-          'unification.events',
-          'persistence.player_updates',
-          'world.player_events'
+          "unification.events",
+          "persistence.player_updates",
+          "world.player_events",
         ],
         metadata: {
-          instanceId: 'fallback-eventbus',
-          region: 'local',
-          environment: 'development'
-        }
+          instanceId: "fallback-eventbus",
+          region: "local",
+          environment: "development",
+        },
       });
       this.initialized = true;
     }
@@ -171,16 +170,19 @@ class LegacyEventBusWrapper {
   async publish(channel: string, message: GameEventMessage): Promise<void> {
     await this.initPromise;
     if (!this.eventBus) {
-      console.warn('EventBus not available, skipping publish');
+      console.warn("EventBus not available, skipping publish");
       return;
     }
     return this.eventBus.publish(channel, message);
   }
 
-  async subscribe(channel: string, handler: (message: GameEventMessage) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    handler: (message: GameEventMessage) => void,
+  ): Promise<void> {
     await this.initPromise;
     if (!this.eventBus) {
-      console.warn('EventBus not available, skipping subscribe');
+      console.warn("EventBus not available, skipping subscribe");
       return;
     }
     return this.eventBus.subscribe(channel, handler);

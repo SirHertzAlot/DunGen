@@ -1,7 +1,14 @@
-import { ConfigManager, EventBusConfig, StorageConfig, QueueConfig } from './ConfigManager';
-import { EventBusFactory, IEventBus } from '../cache/interfaces/IEventBus';
-import { logger } from '../logging/logger';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  ConfigManager,
+  EventBusConfig,
+  StorageConfig,
+  QueueConfig,
+} from "./ConfigManager";
+import { EventBusFactory, IEventBus } from "../cache/IEventBus";
+import logger from "../logging/logger";
+import { v4 as uuidv4 } from "uuid";
+
+const log = logger({ serviceName: "InfrastructureManager" });
 
 // Interface for all infrastructure components
 export interface IInfrastructureComponent {
@@ -33,27 +40,26 @@ export class InfrastructureManager {
   public async initialize(): Promise<void> {
     try {
       await this.configManager.loadConfig();
-      
+
       // Initialize event bus
       await this.initializeEventBus();
-      
+
       // Initialize other components as needed
       // await this.initializeStorage();
       // await this.initializeQueue();
-      
+
       // Setup configuration watchers for hot-swapping
       this.setupConfigurationWatchers();
-      
+
       this.isInitialized = true;
 
-      logger.info('Infrastructure manager initialized successfully', {
-        service: 'InfrastructureManager',
-        componentsCount: this.components.size
+      log.info("Infrastructure manager initialized successfully", {
+        service: "InfrastructureManager",
+        componentsCount: this.components.size,
       });
-
     } catch (error) {
-      logger.error('Failed to initialize infrastructure manager', error as Error, {
-        service: 'InfrastructureManager'
+      log.error("Failed to initialize infrastructure manager", error as Error, {
+        service: "InfrastructureManager",
       });
       throw error;
     }
@@ -70,28 +76,28 @@ export class InfrastructureManager {
 
   // Hot-swap infrastructure component
   public async swapComponent(
-    name: string, 
-    newConfig: any, 
-    componentType: string
+    name: string,
+    newConfig: any,
+    componentType: string,
   ): Promise<void> {
     const requestId = uuidv4();
 
     try {
-      logger.info('Starting component hot-swap', {
-        service: 'InfrastructureManager',
+      log.info("Starting component hot-swap", {
+        service: "InfrastructureManager",
         requestId,
         componentName: name,
-        componentType
+        componentType,
       });
 
       // Get existing component
       const existingComponent = this.components.get(name);
-      
+
       // Create new component
       let newComponent: IInfrastructureComponent;
-      
+
       switch (componentType) {
-        case 'eventBus':
+        case "eventBus":
           newComponent = await EventBusFactory.create(newConfig);
           break;
         // Add other component types as needed
@@ -110,19 +116,18 @@ export class InfrastructureManager {
       // Replace component
       this.components.set(name, newComponent);
 
-      logger.info('Component hot-swap completed successfully', {
-        service: 'InfrastructureManager',
+      log.info("Component hot-swap completed successfully", {
+        service: "InfrastructureManager",
         requestId,
         componentName: name,
-        componentType
+        componentType,
       });
-
     } catch (error) {
-      logger.error('Failed to hot-swap component', error as Error, {
-        service: 'InfrastructureManager',
+      log.error("Failed to hot-swap component", error as Error, {
+        service: "InfrastructureManager",
         requestId,
         componentName: name,
-        componentType
+        componentType,
       });
       throw error;
     }
@@ -133,7 +138,7 @@ export class InfrastructureManager {
     const status = {
       initialized: this.isInitialized,
       components: {} as Record<string, any>,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     for (const [name, component] of this.components) {
@@ -142,7 +147,7 @@ export class InfrastructureManager {
       } catch (error) {
         status.components[name] = {
           error: (error as Error).message,
-          healthy: false
+          healthy: false,
         };
       }
     }
@@ -154,25 +159,25 @@ export class InfrastructureManager {
   public async reconfigureNode(
     nodeType: string,
     environment: string,
-    newConfig: any
+    newConfig: any,
   ): Promise<void> {
     const requestId = uuidv4();
 
     try {
-      logger.info('Reconfiguring infrastructure node', {
-        service: 'InfrastructureManager',
+      log.info("Reconfiguring infrastructure node", {
+        service: "InfrastructureManager",
         requestId,
         nodeType,
-        environment
+        environment,
       });
 
       // Update configuration
       await this.configManager.updateConfig({
         infrastructure: {
           [nodeType]: {
-            [environment]: newConfig
-          }
-        }
+            [environment]: newConfig,
+          },
+        },
       } as any);
 
       // Hot-swap the component if it's currently active
@@ -181,19 +186,18 @@ export class InfrastructureManager {
         await this.swapComponent(componentName, newConfig, nodeType);
       }
 
-      logger.info('Infrastructure node reconfigured successfully', {
-        service: 'InfrastructureManager',
+      log.info("Infrastructure node reconfigured successfully", {
+        service: "InfrastructureManager",
         requestId,
         nodeType,
-        environment
+        environment,
       });
-
     } catch (error) {
-      logger.error('Failed to reconfigure infrastructure node', error as Error, {
-        service: 'InfrastructureManager',
+      log.error("Failed to reconfigure infrastructure node", error as Error, {
+        service: "InfrastructureManager",
         requestId,
         nodeType,
-        environment
+        environment,
       });
       throw error;
     }
@@ -202,78 +206,82 @@ export class InfrastructureManager {
   // Private methods
   private async initializeEventBus(): Promise<void> {
     try {
-      const eventBusConfig = this.configManager.getInfrastructureConfig<EventBusConfig>('eventBus');
-      const eventBus = await EventBusFactory.create(eventBusConfig);
-      
+      const eventBusConfig =
+        this.configManager.getInfrastructureConfig<EventBusConfig>("eventBus");
+      const log = logger({ serviceName: "EventBus" });
+      const eventBus = await EventBusFactory.create(eventBusConfig, log);
+
       await eventBus.initialize(eventBusConfig);
-      this.components.set('eventBus', eventBus as any);
+      this.components.set("eventBus", eventBus as any);
 
-      logger.info('Event bus initialized', {
-        service: 'InfrastructureManager',
+      log.info("Event bus initialized", {
+        service: "InfrastructureManager",
         eventBusType: eventBusConfig.type,
-        instanceId: eventBusConfig.metadata.instanceId
+        instanceId: eventBusConfig.metadata.instanceId,
       });
-
     } catch (error) {
-      logger.error('Failed to initialize event bus', error as Error, {
-        service: 'InfrastructureManager'
+      log.error("Failed to initialize event bus", error as Error, {
+        service: "InfrastructureManager",
       });
 
       // Fallback to memory event bus for development
-      logger.warn('Falling back to memory event bus', {
-        service: 'InfrastructureManager'
+      log.warn("Falling back to memory event bus", {
+        service: "InfrastructureManager",
       });
 
       const fallbackConfig: EventBusConfig = {
-        type: 'memory',
+        type: "memory",
         channels: [
-          'unification.events',
-          'unification.player_events',
-          'unification.region_events',
-          'persistence.player_updates',
-          'world.player_events',
-          'world.chat_events'
+          "unification.events",
+          "unification.player_events",
+          "unification.region_events",
+          "persistence.player_updates",
+          "world.player_events",
+          "world.chat_events",
         ],
         metadata: {
-          instanceId: 'fallback-eventbus-' + uuidv4(),
-          region: 'local',
-          environment: 'development'
-        }
+          instanceId: "fallback-eventbus-" + uuidv4(),
+          region: "local",
+          environment: "development",
+        },
       };
 
       const fallbackEventBus = await EventBusFactory.create(fallbackConfig);
       await fallbackEventBus.initialize(fallbackConfig);
-      this.components.set('eventBus', fallbackEventBus as any);
+      this.components.set("eventBus", fallbackEventBus as any);
     }
   }
 
   private setupConfigurationWatchers(): void {
     // Watch for configuration updates
-    this.configManager.onConfigChange('config.updated', async (updatedConfig) => {
-      logger.info('Configuration updated, checking for component changes', {
-        service: 'InfrastructureManager'
-      });
+    this.configManager.onConfigChange(
+      "config.updated",
+      async (updatedConfig) => {
+        log.info("Configuration updated, checking for component changes", {
+          service: "InfrastructureManager",
+        });
 
-      // TODO: Implement smart component reloading based on config changes
-    });
+        // TODO: Implement smart component reloading based on config changes
+      },
+    );
 
     // Watch for node additions
-    this.configManager.onConfigChange('node.added', async (data) => {
-      logger.info('New infrastructure node added', {
-        service: 'InfrastructureManager',
+    this.configManager.onConfigChange("node.added", async (data) => {
+      log.info("New infrastructure node added", {
+        service: "InfrastructureManager",
         nodeType: data.type,
-        environment: data.environment
+        environment: data.environment,
       });
 
       // TODO: Initialize new node if needed
     });
 
     // Watch for node removals
-    this.configManager.onConfigChange('node.removed', async (data) => {
-      logger.info('Infrastructure node removed', {
-        service: 'InfrastructureManager',
+    this.configManager.onConfigChange("node.removed", async (data) => {
+      log.info("Infrastructure node removed", {
+        service: "InfrastructureManager",
         nodeType: data.type,
-        environment: data.environment
+        environment: data.environment,
       });
 
       // TODO: Cleanup removed node
@@ -282,18 +290,18 @@ export class InfrastructureManager {
 
   // Graceful shutdown
   public async shutdown(): Promise<void> {
-    logger.info('Shutting down infrastructure manager', {
-      service: 'InfrastructureManager'
+    log.info("Shutting down infrastructure manager", {
+      service: "InfrastructureManager",
     });
 
     for (const [name, component] of this.components) {
       try {
         await component.shutdown();
-        logger.info(`Component ${name} shut down successfully`);
+        log.info(`Component ${name} shut down successfully`);
       } catch (error) {
-        logger.error(`Error shutting down component ${name}`, error as Error, {
-          service: 'InfrastructureManager',
-          componentName: name
+        log.error(`Error shutting down component ${name}`, error as Error, {
+          service: "InfrastructureManager",
+          componentName: name,
         });
       }
     }

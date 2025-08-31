@@ -61,16 +61,38 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-    logger.info('Server started successfully');
-  });
-})().catch(err => {
-  logger.error('An error occurred');
-  logger.error(err);
-});
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    async () => {
+      const logger = (await import("../logging/logger")).default;
+      const log = logger({ serviceName: "MainServer" });
+      
+      log.info(`serving on port ${port}`);
+
+      // Initialize ECS and Unity systems after server starts
+      try {
+        const { ecsManager } = await import("../game/ecs/ECSManager");
+        const { unityBridge } = await import("../game/unity/UnityBridge");
+        const { etlService } = await import("../etl/index");
+
+        // Initialize Unity communication bridge on port 8080
+        await unityBridge.initialize(8080);
+
+        // Start ECS manager with 60fps updates
+        await ecsManager.start(log);
+
+        // Initialize ETL service
+        await etlService.initialize(log);
+
+        log.info(`[ecs] Unity ECS systems initialized - WebSocket on port 8080`);
+      } catch (error) {
+        log.error(`[ecs] Failed to initialize game systems:`, error);
+      }
+    },
+  );
+})();

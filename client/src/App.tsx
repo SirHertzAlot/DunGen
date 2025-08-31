@@ -5,10 +5,27 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Navbar } from "@/components/ui/Navbar";
 import Dashboard from "@/pages/dashboard";
+import WorldViewer from "@/pages/world-viewer";
 import NotFound from "@/pages/not-found";
-import HeightmapViewer from "@/pages/HeightmapViewer";
-import Settings from "@/pages/Settings";
-import WorldViewer from "@/pages/WorldViewer";
+import HeightmapViewer from "@/pages/heightmap-viewer";
+import TerrainDesigner from "@/pages/terrain-designer";
+
+function AppRouter() {
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/world-viewer" element={<WorldViewer />} />
+      <Route path="/world" element={<WorldViewer />} />
+      <Route path="/heightmap-viewer" element={<HeightmapViewer />} />
+      <Route path="/heightmaps" element={<HeightmapViewer />} />
+      <Route path="/terrain-designer" element={<TerrainDesigner />} />
+      <Route path="/designer" element={<TerrainDesigner />} />
+      {/* Fallback to 404 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
 
 function App() {
   return (
@@ -16,16 +33,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Router>
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/heightmap-viewer" element={<HeightmapViewer />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/world-viewer" element={<WorldViewer />} />
-            {/* Fallback to 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppRouter />
         </Router>
       </TooltipProvider>
     </QueryClientProvider>

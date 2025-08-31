@@ -1,0 +1,33 @@
+name: Vite Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with Vite
+        run: npm run build
+
+      # Optional: Upload build artifacts (e.g., if deploying)
+      # - name: Upload production-ready build files
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: vite-dist
+      #     path: dist

@@ -1,5 +1,5 @@
 import { IEventBus, GameEventMessage, EventBusConfig, EventBusStatus } from './IEventBus';
-import { logger } from '../../logging/logger';
+import  logger  from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // NATS event bus implementation - placeholder for future implementation

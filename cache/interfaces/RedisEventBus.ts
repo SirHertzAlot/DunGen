@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { IEventBus, GameEventMessage, EventBusConfig, EventBusStatus } from './IEventBus';
-import { logger } from '../../logging/logger';
+import  logger from '../../logging/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 // Redis-based event bus implementation

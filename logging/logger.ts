@@ -1,21 +1,69 @@
-import winston from 'winston';
-import { v4 as uuidv4 } from 'uuid';
+import winston from "winston";
+import { v4 as uuidv4 } from "uuid";
 
 // Logger interface for DRY principle
 export interface ILogger {
   info(message: string, context?: any): void;
   error(message: string, error?: Error, context?: any): void;
+  healthCheck(message: string, context?: any): void;
   warn(message: string, context?: any): void;
   debug(message: string, context?: any): void;
+  setConsoleVerbose(verbose: boolean): void;
+}
+
+export interface ILoggerConfig {
+  // Changed to ILoggerConfig
+  logLevel?: string;
+  errorLogFile?: string;
+  combinedLogFile?: string;
+  healthCheckLogFile?: string;
+  serviceName?: string;
+  consoleVerbose?: boolean; // Added consoleVerbose to the config interface
 }
 
 // Create a logger instance with UUID tracking
 class MMORPGLogger implements ILogger {
   private logger: winston.Logger;
+  private serviceName: string;
+  private consoleTransport: winston.transports.Console; // Store the console transport
 
-  constructor() {
+  constructor(config: ILoggerConfig = {}) {
+    // Use ILoggerConfig here
+    const {
+      logLevel = process.env.LOG_LEVEL || "info",
+      errorLogFile = process.env.ERROR_LOG_FILENAME || "logs/error.log",
+      combinedLogFile = process.env.COMBINED_LOG_FILENAME ||
+        "logs/combined.log",
+      // Fix the syntax error in the destructuring assignment
+      healthCheckLogFile = process.env.HEALTH_CHECK_LOG_FILENAME ||
+        "logs/healthChecks.log",
+      serviceName = "MMORPG-Backend",
+      consoleVerbose = process.env.CONSOLE_VERBOSE === "true" || false, // Default to false unless explicitly true
+    } = config;
+
+    this.serviceName = serviceName; // Assign serviceName to the instance
+
+    const customLevels = {
+      error: 0,
+      warn: 1,
+      info: 2,
+      healthCheck: 3,
+      debug: 4,
+      verbose: 5,
+    };
+
+    // Create the console transport separately
+    this.consoleTransport = new winston.transports.Console({
+      level: consoleVerbose ? "verbose" : logLevel, // Set initial level based on consoleVerbose
+      format: winston.format.combine(
+        winston.format.colorize(), // Add color for better readability in the console
+        winston.format.simple(), // Use a simpler format for the console
+      ),
+    });
+
     this.logger = winston.createLogger({
-      level: process.env.LOG_LEVEL || 'info',
+      levels: customLevels,
+      level: logLevel, // This sets the default level for the logger itself
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
@@ -28,21 +76,26 @@ class MMORPGLogger implements ILogger {
             requestId: meta.requestId || uuidv4(),
             playerId: meta.playerId,
             regionId: meta.regionId,
-            service: meta.service,
-            ...meta
+            service: this.serviceName, // Use the serviceName from the instance
+            ...meta,
           });
-        })
+        }),
       ),
       transports: [
-        new winston.transports.Console(),
-        new winston.transports.File({ 
-          filename: 'logs/error.log', 
-          level: 'error' 
+        this.consoleTransport, // Use the stored console transport
+        new winston.transports.File({
+          filename: errorLogFile, // Use config variable
+          level: "error",
         }),
-        new winston.transports.File({ 
-          filename: 'logs/combined.log' 
-        })
-      ]
+        new winston.transports.File({
+          filename: combinedLogFile, // Use config variable
+          level: "info",
+        }),
+        new winston.transports.File({
+          filename: healthCheckLogFile, // Use config variable
+          level: "healthCheck",
+        }),
+      ],
     });
   }
 
@@ -54,8 +107,12 @@ class MMORPGLogger implements ILogger {
     this.logger.error(message, {
       ...context,
       error: error?.message,
-      stack: error?.stack
+      stack: error?.stack,
     });
+  }
+
+  healthCheck(message: string, context: any = {}): void {
+    this.logger.log("healthCheck", message, context);
   }
 
   warn(message: string, context: any = {}): void {
@@ -65,6 +122,30 @@ class MMORPGLogger implements ILogger {
   debug(message: string, context: any = {}): void {
     this.logger.debug(message, context);
   }
+
+  /**
+   * Enables or disables verbose console logging (all levels).
+   * When enabled, the console will show all messages from 'verbose' level upwards.
+   * When disabled, it reverts to the initial `logLevel` or a specified level.
+   * @param verbose - True to enable verbose logging, false to disable.
+   */
+  setConsoleVerbose(verbose: boolean): void {
+    if (verbose) {
+      this.consoleTransport.level = "verbose"; // Log everything
+      this.logger.debug("Console verbose logging ENABLED", {
+        service: this.serviceName,
+      });
+    } else {
+      // Revert to the original logLevel from the constructor
+      this.consoleTransport.level = this.logger.level;
+      this.logger.debug("Console verbose logging DISABLED", {
+        service: this.serviceName,
+      });
+    }
+  }
 }
 
-export const logger = new MMORPGLogger();
+// Export a function to create logger instances, not a singleton
+export default function logger(config?: ILoggerConfig): ILogger {
+  return new MMORPGLogger(config);
+}
