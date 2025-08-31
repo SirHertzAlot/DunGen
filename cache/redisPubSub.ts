@@ -1,15 +1,20 @@
 import Redis from "ioredis";
-import { logger } from "../logthis.logger";
 import { v4 as uuidv4 } from "uuid";
 import { IEventBus } from "./IEventBus";
-import type { GameEventMessage } from "./IEventBus";
+import type {
+  EventBusConfig,
+  EventBusStatus,
+  GameEventMessage,
+} from "./IEventBus";
+import logger, { ILogger } from "logging/logger";
 
 class RedisEventBus implements IEventBus {
   private publisher: Redis;
   private subscriber: Redis;
   private handlers: Map<string, (message: GameEventMessage) => void>;
+  public logger: ILogger;
 
-  constructor() {
+  constructor(logger: ILogger) {
     const redisConfig = {
       host: process.env.REDIS_HOST || "localhost",
       port: parseInt(process.env.REDIS_PORT || "6379"),
@@ -18,11 +23,24 @@ class RedisEventBus implements IEventBus {
       lazyConnect: true,
     };
 
+    this.logger = logger;
     this.publisher = new Redis(redisConfig);
     this.subscriber = new Redis(redisConfig);
     this.handlers = new Map();
 
     this.setupEventListeners();
+  }
+  initialize(config: EventBusConfig): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+  unsubscribe(channel: string): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+  getStatus(): Promise<EventBusStatus> {
+    throw new Error("Method not implemented.");
+  }
+  updateConfig(config: Partial<EventBusConfig>): Promise<void> {
+    throw new Error("Method not implemented.");
   }
 
   private setupEventListeners(): void {
@@ -149,7 +167,7 @@ class LegacyEventBusWrapper {
 
       // Fallback to in-memory implementation
       const { MemoryEventBus } = await import("./interfaces/MemoryEventBus");
-      this.eventBus = new MemoryEventBus();
+      this.eventBus = new MemoryEventBus(logger);
       await this.eventBus.initialize({
         type: "memory",
         channels: [

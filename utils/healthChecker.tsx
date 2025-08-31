@@ -18,6 +18,9 @@ export const healthCheckerMiddleware = (
     try {
       reply = await redisClient.ping();
 
+      console.log(
+        `Redis server responded with ${reply} @ ${formattedDateTime}.`,
+      );
       if (reply != "PONG") {
         logger.error(
           `Redis server did not respond @ ${formattedDateTime}. Please make sure the server is online.`,

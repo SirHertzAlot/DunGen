@@ -25,7 +25,7 @@ export interface ILoggerConfig {
 class MMORPGLogger implements ILogger {
   private logger: winston.Logger;
   private serviceName: string;
-  private consoleTransport: winston.transports.Console; // Store the console transport
+  private consoleTransport: typeof winston.transports.Console; // Store the console transport
 
   constructor(config: ILoggerConfig = {}) {
     // Use ILoggerConfig here

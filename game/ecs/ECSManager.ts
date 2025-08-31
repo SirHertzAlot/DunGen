@@ -8,7 +8,6 @@ import { ISystem } from "./systems/ISystem";
 import { CombatSystem } from "./systems/CombatSystem";
 import { MovementSystem } from "./systems/MovementSystem";
 import logger, { ILogger } from "../../logging/logger";
-import type { ILogger } from "../../eventbus/IEventBus"; // Import the interface for typing
 import { v4 as uuidv4 } from "uuid";
 
 // Unity message types for communication
