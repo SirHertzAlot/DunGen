@@ -85,13 +85,21 @@ export default function Dashboard() {
   });
 
   // Query for system health
-  const { data: healthResponse, isLoading: healthLoading } = useQuery<{
+  const {
+    data: healthResponse,
+    isLoading: healthLoading,
+    isError,
+  } = useQuery<{
     status: string;
     service: string;
     message: string;
     timestamp: string;
   }>({
     queryKey: ["/api/health"],
+    queryFn: async () => {
+      const res = await fetch("/api/health");
+      return res.json();
+    },
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
@@ -109,7 +117,7 @@ export default function Dashboard() {
 
   /**
    * Calculates system statistics based on region data.
-   * 
+   *
    * @returns {SystemStats} An object containing total players, online players, total regions, active regions, uptime, and events processed.
    */
   const systemStats: SystemStats = {
@@ -123,7 +131,7 @@ export default function Dashboard() {
 
   /**
    * Formats uptime in milliseconds into a human-readable string.
-   * 
+   *
    * @param {number} ms - The uptime in milliseconds.
    * @returns {string} A formatted string in the format "Xh Ym".
    */
@@ -143,7 +151,19 @@ export default function Dashboard() {
               <Gamepad2 className="h-8 w-8 text-primary" />
               <h1 className="text-3xl font-bold">MMORPG Backend Dashboard</h1>
               {/* Pass healthData prop to SystemHealthBadge */}
-              {healthResponse && <SystemHealthBadge health={healthResponse} />}
+              <div className="flex gap-2">
+                {healthLoading ? (
+                  <div>Loading health data...</div>
+                ) : !healthResponse ? (
+                  <div>No health data available.</div>
+                ) : !healthResponse.results?.length ? (
+                  <div>No health checks found.</div>
+                ) : (
+                  healthResponse.results.map((check) => (
+                    <SystemHealthBadge key={check.service} health={check} />
+                  ))
+                )}
+              </div>
             </div>
             <Link href="/world">
               <Button className="flex items-center gap-2">

@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { playerController } from "../controllers/playerController";
 import { worldController } from "../controllers/worldController";
-import { healthCheckerMiddleware } from "../utils/healthChecker";
+import { healthCheckerMiddleware } from "../../utils/healthChecker";
+import { makeRedisHealthCheck } from "../../utils/healthchecks/redisHealthCheck";
+import logger from "../../logging/logger";
+import { Redis } from "ioredis";
 import {
   validate,
   validateUUID,
@@ -11,6 +14,7 @@ import {
   authRateLimit,
   playerActionRateLimit,
   adminRateLimit,
+  generalRateLimit,
 } from "../middleware/rateLimiting";
 import {
   verifyToken,
@@ -25,33 +29,16 @@ import {
   insertGameEventSchema,
 } from "@shared/schema";
 
+const redisClient = new Redis();
+const healthChecks = [makeRedisHealthCheck(redisClient)];
 const router = Router();
+const myLogger = logger();
 
 // Apply general rate limiting to all API routes
 router.use(generalRateLimit);
 
 // Health check endpoint
-router.get("/api/health", healthCheckerMiddleware, (req, res) => {
-  if (req) {
-    logger.info(`Health check request received @ ${new Date().toISOString()}`);
-  }
-  if (!req.status === "ok") {
-    logger.info(`req was not able to be fulfilled.`);
-    res.json({
-      status: "error",
-      message: ` ${req.service.toString()} did not respond...`,
-      timestamp: new Date().toISOString(),
-    });
-  }
-  logger.info(`req was successfully fulfilled.`);
-  res.json({
-    status: req.status.toString(),
-    service: req.service.toString(),
-    message: req.message.toString(),
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "1.0.0",
-  });
-});
+router.get("/api/health", healthCheckerMiddleware(healthChecks, myLogger, redisClient));
 
 // Player routes
 const playerRoutes = Router();
@@ -70,7 +57,10 @@ playerRoutes.get(
   playerController.getPlayer,
 );
 
-playerRoutes.use(verifyToken as unknown as import('express').RequestHandler, requirePlayer as unknown as import('express').RequestHandler);
+playerRoutes.use(
+  verifyToken as unknown as import("express").RequestHandler,
+  requirePlayer as unknown as import("express").RequestHandler,
+);
 
 playerRoutes.put(
   "/:id",
@@ -182,9 +172,9 @@ router.use("/game", gameRoutes);
 const adminRoutes = Router();
 
 adminRoutes.use(
-  verifyToken as unknown as import('express').RequestHandler,
-  requireAdmin as unknown as import('express').RequestHandler,
-  adminRateLimit
+  verifyToken as unknown as import("express").RequestHandler,
+  requireAdmin as unknown as import("express").RequestHandler,
+  adminRateLimit,
 );
 
 adminRoutes.get("/stats/overview", (req, res) => {
@@ -236,8 +226,8 @@ async function getActiveRegions() {
 async function searchPlayers(query: string) {
   // 'query' is used for demonstration, but not read in this mock
   return [
-    { id: '1', username: 'Player1' },
-    { id: '2', username: 'Player2' }
+    { id: "1", username: "Player1" },
+    { id: "2", username: "Player2" },
   ];
 }
 
@@ -246,4 +236,3 @@ async function getTotalEvents() {
   // Placeholder: Replace with actual DB query in production
   return 5000;
 }
-

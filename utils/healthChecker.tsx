@@ -1,57 +1,67 @@
 import { Request, Response, NextFunction } from "express";
-import { Redis } from "ioredis";
 import { ILogger } from "../logging/logger";
-/**
- * Checks the health of a ioredis client by performing PING command.
- * @param redisClient - The ioredis client instance to check.
- * @returns A promise that resolves to true if the client is healthy, false otherwise.
- */
+import { makeRedisHealthCheck } from "./healthchecks/redisHealthCheck";
+import { Redis } from "ioredis";
 
-export const healthCheckerMiddleware = (
-  redisClient: Redis,
+export interface HealthCheckResult {
+  service: string;
+  healthy: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
+export type HealthCheckFn = () => Promise<HealthCheckResult>;
+
+export function healthCheckerMiddleware(
+  healthChecks: HealthCheckFn[],
   logger: ILogger,
-) => {
+  redisClient: Redis,
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const currentDateTime = new Date();
-    const formattedDateTime = `${currentDateTime.getFullYear()}-${currentDateTime.getMonth() + 1}-${currentDateTime.getDate()} ${currentDateTime.getHours()}:${currentDateTime.getMinutes()}:${currentDateTime.getSeconds()}`;
-    let reply: string | undefined;
-    try {
-      reply = await redisClient.ping();
+    const formattedDateTime = `${currentDateTime.getFullYear()}-${String(currentDateTime.getMonth() + 1).padStart(2, "0")}-${String(currentDateTime.getDate()).padStart(2, "0")} ${String(currentDateTime.getHours()).padStart(2, "0")}:${String(currentDateTime.getMinutes()).padStart(2, "0")}:${String(currentDateTime.getSeconds()).padStart(2, "0")}`;
+    healthChecks = [
+      makeRedisHealthCheck(redisClient),
+      // Add other health checks here
+    ];
+    const results: HealthCheckResult[] = [];
+    let allHealthy = true;
 
-      console.log(
-        `Redis server responded with ${reply} @ ${formattedDateTime}.`,
-      );
-      if (reply != "PONG") {
-        logger.error(
-          `Redis server did not respond @ ${formattedDateTime}. Please make sure the server is online.`,
+    for (const check of healthChecks) {
+      try {
+        const result = await check();
+        results.push(result);
+        if (!result.healthy) allHealthy = false;
+        logger.healthCheck?.(
+          `[${result.service}] ${result.healthy ? "Healthy" : "Unhealthy"}: ${result.message ?? ""} @ ${formattedDateTime}`,
         );
-        return res.status(500).json({
-          status: "error",
-          message: "Redis server did not respond.",
-          timestamp: formattedDateTime,
-        });
-      } else {
-        logger.healthCheck(
-          `Redis server responded with PONG @ ${formattedDateTime}.`,
+      } catch (err) {
+        allHealthy = false;
+        const errorResult: HealthCheckResult = {
+          service: "unknown",
+          healthy: false,
+          message: (err as Error).message,
+        };
+        results.push(errorResult);
+        logger.error?.(
+          `Health check threw: ${(err as Error).message} @ ${formattedDateTime}`,
+          err as Error,
         );
-        res.status(200).json({
-          status: "ok",
-          message: "Redis server is healthy.",
-          timestamp: formattedDateTime,
-        });
-        next();
       }
-    } catch (error) {
-      logger.error(
-        `Redis server seems to be down... @ ${formattedDateTime}. Please check the server status.`,
-        error as Error,
-        { component: "redis", reply },
-      );
+    }
+
+    if (allHealthy) {
+      return res.status(200).json({
+        status: "ok",
+        results,
+        timestamp: formattedDateTime,
+      });
+    } else {
       return res.status(500).json({
-        status: `${error}`,
-        message: "Redis server seems to be down...",
+        status: "error",
+        results,
         timestamp: formattedDateTime,
       });
     }
   };
-};
+}

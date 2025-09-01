@@ -14,16 +14,24 @@ import {
 import { healthCheckerMiddleware } from "../utils/healthChecker";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
+import { makeRedisHealthCheck } from "../utils/healthchecks/redisHealthCheck";
+import Redis from "ioredis";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const log = logger({ serviceName: "API" });
   const playerRepo = new PlayerRepository(storage);
-  const log = logger({ serviceName: "MainServer-API" });
-
+  const redisHealthCheck = makeRedisHealthCheck(new Redis());
+  const redisClient = new Redis(
+    process.env.REDIS_URL || "redis://localhost:6379",
+  );
   // Health check endpoint
   // You need to import or initialize your redisClient here
   // For example: import { redisClient } from "../utils/redisClient";
   // Make sure redisClient is available in this scope
-  app.get("/api/health", healthCheckerMiddleware(storage.redisClient, log));
+  app.get(
+    "/api/health",
+    healthCheckerMiddleware([redisHealthCheck], log, redisClient),
+  );
 
   // Player endpoints
   app.post("/api/players", async (req, res) => {

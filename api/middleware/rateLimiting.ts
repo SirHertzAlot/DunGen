@@ -1,8 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
-import { Redis } from 'ioredis';
-import { logger } from '../../logging/logger';
+import { Request, Response, NextFunction } from "express";
+import { Redis } from "ioredis";
+import logger from "../../logging/logger";
 
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const log = logger();
+
+const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
 interface RateLimitConfig {
   windowMs: number;
@@ -24,36 +26,36 @@ class RateLimiter {
       try {
         const key = this.getKey(req);
         const current = await this.increment(key);
-        
+
         const remaining = Math.max(0, this.config.maxRequests - current);
         const resetTime = Date.now() + this.config.windowMs;
-        
+
         // Set headers
         res.set({
-          'X-RateLimit-Limit': this.config.maxRequests.toString(),
-          'X-RateLimit-Remaining': remaining.toString(),
-          'X-RateLimit-Reset': new Date(resetTime).toISOString()
+          "X-RateLimit-Limit": this.config.maxRequests.toString(),
+          "X-RateLimit-Remaining": remaining.toString(),
+          "X-RateLimit-Reset": new Date(resetTime).toISOString(),
         });
 
         if (current > this.config.maxRequests) {
-          logger.warn('Rate limit exceeded', {
+          log.warn("Rate limit exceeded", {
             key,
             current,
             limit: this.config.maxRequests,
             ip: req.ip,
-            userAgent: req.get('User-Agent')
+            userAgent: req.get("User-Agent"),
           });
-          
+
           return res.status(429).json({
-            error: 'Too many requests',
+            error: "Too many requests",
             message: `Rate limit exceeded. Maximum ${this.config.maxRequests} requests per ${this.config.windowMs / 1000} seconds.`,
-            retryAfter: Math.ceil(this.config.windowMs / 1000)
+            retryAfter: Math.ceil(this.config.windowMs / 1000),
           });
         }
 
         next();
-      } catch (error) {
-        logger.error('Rate limiting error', { error: error.message });
+      } catch (error: any) {
+        log.error("Rate limiting error", error, { error: error.message });
         // Allow request through on Redis error
         next();
       }
@@ -64,7 +66,7 @@ class RateLimiter {
     if (this.config.keyGenerator) {
       return this.config.keyGenerator(req);
     }
-    
+
     // Default key generation
     const ip = req.ip || req.connection.remoteAddress;
     const route = req.route?.path || req.path;
@@ -75,9 +77,9 @@ class RateLimiter {
     const multi = redis.multi();
     multi.incr(key);
     multi.expire(key, Math.ceil(this.config.windowMs / 1000));
-    
+
     const results = await multi.exec();
-    return results?.[0]?.[1] as number || 0;
+    return (results?.[0]?.[1] as number) || 0;
   }
 }
 
@@ -86,43 +88,43 @@ export const rateLimiters = {
   // General API rate limiting
   general: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
-    maxRequests: 100
+    maxRequests: 100,
   }),
 
   // Authentication endpoints
   auth: new RateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 5,
-    keyGenerator: (req) => `auth:${req.ip}:${req.body?.username || 'unknown'}`
+    keyGenerator: (req) => `auth:${req.ip}:${req.body?.username || "unknown"}`,
   }),
 
   // Player actions (movement, combat, etc.)
   playerActions: new RateLimiter({
     windowMs: 1000, // 1 second
     maxRequests: 10,
-    keyGenerator: (req) => `player_action:${req.user?.id || req.ip}`
+    keyGenerator: (req) => `player_action:${(req as any).user?.id || req.ip}`,
   }),
 
   // Chat/messaging
   chat: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 30,
-    keyGenerator: (req) => `chat:${req.user?.id || req.ip}`
+    keyGenerator: (req) => `chat:${(req as any).user?.id || req.ip}`,
   }),
 
   // Admin operations
   admin: new RateLimiter({
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 200,
-    keyGenerator: (req) => `admin:${req.user?.id || req.ip}`
+    keyGenerator: (req) => `admin:${(req as any).user?.id || req.ip}`,
   }),
 
   // Heavy operations (reports, exports)
   heavy: new RateLimiter({
     windowMs: 60 * 60 * 1000, // 1 hour
     maxRequests: 10,
-    keyGenerator: (req) => `heavy:${req.user?.id || req.ip}`
-  })
+    keyGenerator: (req) => `heavy:${(req as any).user?.id || req.ip}`,
+  }),
 };
 
 // Rate limiting middleware functions
