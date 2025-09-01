@@ -1184,7 +1184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/worldgen/manual-generate", async (req, res) => {
     try {
       const { generateThreeTerrain } = await import(
-        "../api/three-terrain-generator.js"
+        "../api/three-terrain-generator.ts"
       );
       await generateThreeTerrain(req, res);
     } catch (error) {

@@ -106,6 +106,7 @@ class MMORPGLogger implements ILogger {
   error(message: string, error: Error, context: any = {}): void {
     this.logger.error(message, {
       ...context,
+      service: this.serviceName,
       error: error.message,
       stack: error?.stack,
     });
