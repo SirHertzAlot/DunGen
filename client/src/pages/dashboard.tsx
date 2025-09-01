@@ -94,6 +94,7 @@ export default function Dashboard() {
     service: string;
     message: string;
     timestamp: string;
+    results: HealthData[];
   }>({
     queryKey: ["/api/health"],
     queryFn: async () => {
@@ -233,7 +234,9 @@ export default function Dashboard() {
                 <div className="text-2xl font-bold">
                   {systemStats.eventProcessed.toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground">Total game events</p>
+                <p className="text-xs text-muted-foreground">
+                  Total game events
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -295,7 +298,9 @@ export default function Dashboard() {
                           <TableRow key={region.id}>
                             <TableCell className="font-medium">
                               <div>
-                                <div className="font-semibold">{region.name}</div>
+                                <div className="font-semibold">
+                                  {region.name}
+                                </div>
                                 <div className="text-sm text-muted-foreground">
                                   {region.id}
                                 </div>
@@ -307,8 +312,8 @@ export default function Dashboard() {
                                   region.status === "active"
                                     ? "default"
                                     : region.status === "maintenance"
-                                    ? "secondary"
-                                    : "destructive"
+                                      ? "secondary"
+                                      : "destructive"
                                 }
                               >
                                 {region.status}
@@ -330,20 +335,24 @@ export default function Dashboard() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline">{region.serverNode}</Badge>
+                              <Badge variant="outline">
+                                {region.serverNode}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <span
                                 className={`font-medium ${
                                   region.playerCount / region.maxPlayers > 0.8
                                     ? "text-red-500"
-                                    : region.playerCount / region.maxPlayers > 0.6
-                                    ? "text-yellow-500"
-                                    : "text-green-500"
+                                    : region.playerCount / region.maxPlayers >
+                                        0.6
+                                      ? "text-yellow-500"
+                                      : "text-green-500"
                                 }`}
                               >
                                 {Math.round(
-                                  (region.playerCount / region.maxPlayers) * 100,
+                                  (region.playerCount / region.maxPlayers) *
+                                    100,
                                 )}
                                 %
                               </span>
@@ -552,7 +561,8 @@ export default function Dashboard() {
                       <h4 className="font-semibold">YAML Configuration</h4>
                       <div className="p-4 border rounded-lg">
                         <div className="text-sm text-muted-foreground">
-                          Display YAML configuration here (future implementation)
+                          Display YAML configuration here (future
+                          implementation)
                         </div>
                       </div>
                     </div>
