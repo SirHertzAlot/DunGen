@@ -25,6 +25,16 @@ try {
   );
 }
 
+// Helper: flatten a 2D number array, or just return a 1D array unchanged
+function flattenHeightmap(heightmap: unknown): number[] {
+  if (Array.isArray(heightmap) && Array.isArray(heightmap[0])) {
+    // 2D array: flatten
+    return (heightmap as number[][]).flat();
+  }
+  // Already flat
+  return heightmap as number[];
+}
+
 // Get terrain chunk data
 router.get("/chunk/:x/:z", async (req, res) => {
   try {
@@ -40,16 +50,7 @@ router.get("/chunk/:x/:z", async (req, res) => {
 
     const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
 
-    function is2DNumberArray(arr: unknown): arr is number[][] {
-      return Array.isArray(arr) && Array.isArray(arr[0]);
-    }
-
-    let flatHeightmap: number[];
-    if (is2DNumberArray(chunk.heightmap)) {
-      flatHeightmap = (chunk.heightmap as number[][]).flat();
-    } else {
-      flatHeightmap = chunk.heightmap as number[];
-    }
+    const flatHeightmap = flattenHeightmap(chunk.heightmap);
 
     // Validate heightmap data and ensure we have the expected size (64x64 = 4096)
     const expectedSize = chunk.size * chunk.size;
@@ -62,7 +63,7 @@ router.get("/chunk/:x/:z", async (req, res) => {
       });
     }
 
-    const validHeightmap = (flatHeightmap as number[]).map((h) =>
+    const validHeightmap = flatHeightmap.map((h) =>
       typeof h === "number" && !isNaN(h) ? h : 0,
     );
 
@@ -264,15 +265,24 @@ router.get("/region/:minX/:minZ/:maxX/:maxZ", async (req, res) => {
       });
     }
 
-    const chunks = [];
+    const chunks: {
+      id: string;
+      position: [number, number];
+      size: number;
+      heightmap: number[];
+      biomes: import("../game/worldgen/TerrainGenerator").BiomeType[][];
+      features: import("../game/worldgen/TerrainGenerator").TerrainFeature[];
+    }[] = [];
     for (let x = minX; x <= maxX; x++) {
       for (let z = minZ; z <= maxZ; z++) {
         const chunk = await terrainGenerator.getChunk(x, z);
+        const flatHeightmap = flattenHeightmap(chunk.heightmap);
+
         chunks.push({
           id: chunk.id,
           position: [x, z],
           size: chunk.size,
-          heightmap: chunk.heightmap,
+          heightmap: flatHeightmap,
           biomes: chunk.biomes,
           features: chunk.features,
         });
@@ -321,10 +331,7 @@ router.get("/heightmap/:x/:z", async (req, res) => {
     const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
 
     // Ensure heightmap is a flat array
-    let flatHeightmap = chunk.heightmap;
-    if (Array.isArray(chunk.heightmap[0])) {
-      flatHeightmap = (chunk.heightmap as number[][]).flat();
-    }
+    const flatHeightmap = flattenHeightmap(chunk.heightmap);
 
     // Find min/max heights for proper normalization
     const minHeight = Math.min(...flatHeightmap);
@@ -333,7 +340,12 @@ router.get("/heightmap/:x/:z", async (req, res) => {
 
     // Convert heightmap to grayscale image data for visual review
     const size = chunk.size; // Should be 64
-    const imageData = [];
+    const imageData: {
+      x: number;
+      y: number;
+      height: number;
+      grayscale: number;
+    }[] = [];
 
     for (let i = 0; i < flatHeightmap.length; i++) {
       // Normalize height to 0-255 grayscale
@@ -393,12 +405,9 @@ router.get("/mountain/:x/:z", async (req, res) => {
     const chunk = await terrainGenerator.generateMountainChunk(chunkX, chunkZ);
 
     // Ensure heightmap is a flat array
-    let flatHeightmap = chunk.heightmap;
-    if (Array.isArray(chunk.heightmap[0])) {
-      flatHeightmap = (chunk.heightmap as number[][]).flat();
-    }
+    const flatHeightmap = flattenHeightmap(chunk.heightmap);
 
-    const validHeightmap = (flatHeightmap as number[]).map((h) =>
+    const validHeightmap = flatHeightmap.map((h) =>
       typeof h === "number" && !isNaN(h) ? h : 0,
     );
 
