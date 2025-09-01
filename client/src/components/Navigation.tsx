@@ -1,6 +1,6 @@
-import React from 'react';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
-import { Link } from 'react-router-dom'; // Assuming you are using React Router
+import React from "react";
+import { AppBar, Toolbar, Typography, Button } from "@mui/material";
+import { Link } from "react-router-dom"; // Assuming you are using React Router
 
 const Navigation = () => {
   return (
@@ -12,8 +12,8 @@ const Navigation = () => {
         <Button color="inherit" component={Link} to="/">
           Dashboard
         </Button>
-        <Button color="inherit" component={Link} to="/world-map">
-          World Map
+        <Button color="inherit" component={Link} to="/world-viewer">
+          World Viewer
         </Button>
         <Button color="inherit" component={Link} to="/settings">
           Settings

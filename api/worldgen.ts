@@ -1,26 +1,26 @@
-import { Router } from 'express';
-import { TerrainGenerator } from '../game/worldgen/TerrainGenerator';
-import { logger } from '../logging/logger';
+import { Router } from "express";
+import { TerrainGenerator } from "../game/worldgen/TerrainGenerator";
+import logger from "../logging/logger";
 
 const router = Router();
+const genLogger = logger();
 
 // Initialize terrain generator
 let terrainGenerator: TerrainGenerator;
 
 try {
   terrainGenerator = TerrainGenerator.getInstance();
-  logger.info('Terrain generator initialized for API', {
-    service: 'WorldGenAPI'
+  genLogger.info("Terrain generator initialized for API", {
+    service: "WorldGenAPI",
   });
 } catch (error) {
-  logger.error('Failed to initialize terrain generator', {
-    service: 'WorldGenAPI',
-    error: error instanceof Error ? error.message : 'Unknown error'
+  genLogger.error("Failed to initialize terrain generator - WorldGenAPI", {
+    error: error instanceof Error ? error.message : "Unknown error",
   });
 }
 
 // Get terrain chunk data
-router.get('/chunk/:x/:z', async (req, res) => {
+router.get("/chunk/:x/:z", async (req, res) => {
   try {
     const chunkX = parseInt(req.params.x);
     const chunkZ = parseInt(req.params.z);
@@ -28,32 +28,36 @@ router.get('/chunk/:x/:z', async (req, res) => {
     if (isNaN(chunkX) || isNaN(chunkZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid chunk coordinates'
+        error: "Invalid chunk coordinates",
       });
     }
 
     const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
 
-    // Ensure heightmap is a flat array with correct size
-    let flatHeightmap = chunk.heightmap;
-    if (Array.isArray(chunk.heightmap[0])) {
-      // If it's 2D, flatten it
+    function is2DNumberArray(arr: unknown): arr is number[][] {
+      return Array.isArray(arr) && Array.isArray(arr[0]);
+    }
+
+    let flatHeightmap: number[];
+    if (is2DNumberArray(chunk.heightmap)) {
       flatHeightmap = (chunk.heightmap as number[][]).flat();
+    } else {
+      flatHeightmap = chunk.heightmap as number[];
     }
 
     // Validate heightmap data and ensure we have the expected size (64x64 = 4096)
     const expectedSize = chunk.size * chunk.size;
     if (flatHeightmap.length !== expectedSize) {
-      logger.warn('Heightmap size mismatch', {
-        service: 'WorldGenAPI',
+      genLogger.warn("Heightmap size mismatch", {
+        service: "WorldGenAPI",
         expected: expectedSize,
         actual: flatHeightmap.length,
-        chunkSize: chunk.size
+        chunkSize: chunk.size,
       });
     }
 
-    const validHeightmap = (flatHeightmap as number[]).map(h => 
-      (typeof h === 'number' && !isNaN(h)) ? h : 0
+    const validHeightmap = (flatHeightmap as number[]).map((h) =>
+      typeof h === "number" && !isNaN(h) ? h : 0,
     );
 
     res.json({
@@ -65,27 +69,26 @@ router.get('/chunk/:x/:z', async (req, res) => {
         heightmap: validHeightmap,
         biomes: chunk.biomes,
         features: chunk.features,
-        generated: chunk.generated
-      }
+        generated: chunk.generated,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get terrain chunk', {
-      service: 'WorldGenAPI',
-      chunkX: req.params.x,
-      chunkZ: req.params.z,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    genLogger.error(
+      `Failed to get terrain chunk - WorldGen API - ${req.params.x} - ${req.params.z}`,
+      {
+        error: `${error.message}`,
+      },
+    );
 
     res.status(500).json({
       success: false,
-      error: 'Failed to generate terrain chunk'
+      error: "Failed to generate terrain chunk",
     });
   }
 });
 
 // Get height at specific coordinates
-router.get('/height/:x/:z', async (req, res) => {
+router.get("/height/:x/:z", async (req, res) => {
   try {
     const worldX = parseFloat(req.params.x);
     const worldZ = parseFloat(req.params.z);
@@ -93,7 +96,7 @@ router.get('/height/:x/:z', async (req, res) => {
     if (isNaN(worldX) || isNaN(worldZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid world coordinates'
+        error: "Invalid world coordinates",
       });
     }
 
@@ -103,27 +106,26 @@ router.get('/height/:x/:z', async (req, res) => {
       success: true,
       data: {
         position: [worldX, worldZ],
-        height: height
-      }
+        height: height,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get height at position', {
-      service: 'WorldGenAPI',
-      worldX: req.params.x,
-      worldZ: req.params.z,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    genLogger.error(
+      `Failed to get height at position - WorldGen API - ${req.params.x} - ${req.params.z}`,
+      {
+        error: `${error.message}`,
+      },
+    );
 
     res.status(500).json({
       success: false,
-      error: 'Failed to get height at position'
+      error: "Failed to get height at position",
     });
   }
 });
 
 // Get biome at specific coordinates
-router.get('/biome/:x/:z', async (req, res) => {
+router.get("/biome/:x/:z", async (req, res) => {
   try {
     const worldX = parseFloat(req.params.x);
     const worldZ = parseFloat(req.params.z);
@@ -131,7 +133,7 @@ router.get('/biome/:x/:z', async (req, res) => {
     if (isNaN(worldX) || isNaN(worldZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid world coordinates'
+        error: "Invalid world coordinates",
       });
     }
 
@@ -141,34 +143,33 @@ router.get('/biome/:x/:z', async (req, res) => {
       success: true,
       data: {
         position: [worldX, worldZ],
-        biome: biome
-      }
+        biome: biome,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get biome at position', {
-      service: 'WorldGenAPI',
+    genLogger.error("Failed to get biome at position", {
+      service: "WorldGenAPI",
       worldX: req.params.x,
       worldZ: req.params.z,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
       success: false,
-      error: 'Failed to get biome at position'
+      error: "Failed to get biome at position",
     });
   }
 });
 
 // Get features in a region
-router.get('/features', async (req, res) => {
+router.get("/features", async (req, res) => {
   try {
     const { minX, minZ, maxX, maxZ } = req.query;
 
     if (!minX || !minZ || !maxX || !maxZ) {
       return res.status(400).json({
         success: false,
-        error: 'Missing region parameters (minX, minZ, maxX, maxZ)'
+        error: "Missing region parameters (minX, minZ, maxX, maxZ)",
       });
     }
 
@@ -176,7 +177,7 @@ router.get('/features', async (req, res) => {
       parseFloat(minX as string),
       parseFloat(minZ as string),
       parseFloat(maxX as string),
-      parseFloat(maxZ as string)
+      parseFloat(maxZ as string),
     );
 
     res.json({
@@ -184,26 +185,25 @@ router.get('/features', async (req, res) => {
       data: {
         region: { minX, minZ, maxX, maxZ },
         features: features,
-        count: features.length
-      }
+        count: features.length,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get features in region', {
-      service: 'WorldGenAPI',
+    genLogger.error("Failed to get features in region", {
+      service: "WorldGenAPI",
       region: req.query,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
       success: false,
-      error: 'Failed to get features in region'
+      error: "Failed to get features in region",
     });
   }
 });
 
 // Get world generation configuration
-router.get('/config', async (req, res) => {
+router.get("/config", async (req, res) => {
   try {
     const config = terrainGenerator.getConfig();
 
@@ -212,29 +212,28 @@ router.get('/config', async (req, res) => {
       data: {
         world: config.world,
         biomes: Object.keys(config.biomes),
-        pipeline_steps: config.pipeline.steps.map(step => ({
+        pipeline_steps: config.pipeline.steps.map((step) => ({
           name: step.name,
           type: step.type,
-          enabled: step.enabled
-        }))
-      }
+          enabled: step.enabled,
+        })),
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get world generation config', {
-      service: 'WorldGenAPI',
-      error: error instanceof Error ? error.message : 'Unknown error'
+    genLogger.error("Failed to get world generation config", {
+      service: "WorldGenAPI",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
       success: false,
-      error: 'Failed to get world generation config'
+      error: "Failed to get world generation config",
     });
   }
 });
 
 // Get multiple chunks in a region (for efficient loading)
-router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
+router.get("/region/:minX/:minZ/:maxX/:maxZ", async (req, res) => {
   try {
     const minX = parseInt(req.params.minX);
     const minZ = parseInt(req.params.minZ);
@@ -244,7 +243,7 @@ router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
     if (isNaN(minX) || isNaN(minZ) || isNaN(maxX) || isNaN(maxZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid region coordinates'
+        error: "Invalid region coordinates",
       });
     }
 
@@ -253,7 +252,7 @@ router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
     if (maxX - minX > maxRegionSize || maxZ - minZ > maxRegionSize) {
       return res.status(400).json({
         success: false,
-        error: `Region too large. Maximum size is ${maxRegionSize}x${maxRegionSize} chunks`
+        error: `Region too large. Maximum size is ${maxRegionSize}x${maxRegionSize} chunks`,
       });
     }
 
@@ -267,7 +266,7 @@ router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
           size: chunk.size,
           heightmap: chunk.heightmap,
           biomes: chunk.biomes,
-          features: chunk.features
+          features: chunk.features,
         });
       }
     }
@@ -277,26 +276,30 @@ router.get('/region/:minX/:minZ/:maxX/:maxZ', async (req, res) => {
       data: {
         region: { minX, minZ, maxX, maxZ },
         chunks: chunks,
-        count: chunks.length
-      }
+        count: chunks.length,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to get region chunks', {
-      service: 'WorldGenAPI',
-      region: [req.params.minX, req.params.minZ, req.params.maxX, req.params.maxZ],
-      error: error instanceof Error ? error.message : 'Unknown error'
+    genLogger.error("Failed to get region chunks", {
+      service: "WorldGenAPI",
+      region: [
+        req.params.minX,
+        req.params.minZ,
+        req.params.maxX,
+        req.params.maxZ,
+      ],
+      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
       success: false,
-      error: 'Failed to generate region chunks'
+      error: "Failed to generate region chunks",
     });
   }
 });
 
 // Export heightmap as visual data for quality review
-router.get('/heightmap/:x/:z', async (req, res) => {
+router.get("/heightmap/:x/:z", async (req, res) => {
   try {
     const chunkX = parseInt(req.params.x);
     const chunkZ = parseInt(req.params.z);
@@ -304,12 +307,12 @@ router.get('/heightmap/:x/:z', async (req, res) => {
     if (isNaN(chunkX) || isNaN(chunkZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid chunk coordinates'
+        error: "Invalid chunk coordinates",
       });
     }
 
     const chunk = await terrainGenerator.getChunk(chunkX, chunkZ);
-    
+
     // Ensure heightmap is a flat array
     let flatHeightmap = chunk.heightmap;
     if (Array.isArray(chunk.heightmap[0])) {
@@ -320,24 +323,26 @@ router.get('/heightmap/:x/:z', async (req, res) => {
     const minHeight = Math.min(...flatHeightmap);
     const maxHeight = Math.max(...flatHeightmap);
     const heightRange = maxHeight - minHeight;
-    
+
     // Convert heightmap to grayscale image data for visual review
     const size = chunk.size; // Should be 64
     const imageData = [];
-    
+
     for (let i = 0; i < flatHeightmap.length; i++) {
       // Normalize height to 0-255 grayscale
-      const normalizedHeight = heightRange > 0 ? 
-        Math.floor(((flatHeightmap[i] - minHeight) / heightRange) * 255) : 128;
-      
+      const normalizedHeight =
+        heightRange > 0
+          ? Math.floor(((flatHeightmap[i] - minHeight) / heightRange) * 255)
+          : 128;
+
       imageData.push({
         x: i % size,
         y: Math.floor(i / size),
         height: flatHeightmap[i],
-        grayscale: normalizedHeight
+        grayscale: normalizedHeight,
       });
     }
-    
+
     res.json({
       success: true,
       data: {
@@ -348,27 +353,26 @@ router.get('/heightmap/:x/:z', async (req, res) => {
         maxHeight,
         heightRange,
         imageData,
-        rawHeightmap: flatHeightmap
-      }
+        rawHeightmap: flatHeightmap,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to export heightmap', {
-      service: 'WorldGenAPI',
+    genLogger.error("Failed to export heightmap", {
+      service: "WorldGenAPI",
       chunkX: req.params.x,
       chunkZ: req.params.z,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
-    
+
     res.status(500).json({
       success: false,
-      error: 'Failed to export heightmap'
+      error: "Failed to export heightmap",
     });
   }
 });
 
 // Test endpoint to force mountain terrain generation
-router.get('/mountain/:x/:z', async (req, res) => {
+router.get("/mountain/:x/:z", async (req, res) => {
   try {
     const chunkX = parseInt(req.params.x);
     const chunkZ = parseInt(req.params.z);
@@ -376,7 +380,7 @@ router.get('/mountain/:x/:z', async (req, res) => {
     if (isNaN(chunkX) || isNaN(chunkZ)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid chunk coordinates'
+        error: "Invalid chunk coordinates",
       });
     }
 
@@ -388,8 +392,8 @@ router.get('/mountain/:x/:z', async (req, res) => {
       flatHeightmap = (chunk.heightmap as number[][]).flat();
     }
 
-    const validHeightmap = (flatHeightmap as number[]).map(h => 
-      (typeof h === 'number' && !isNaN(h)) ? h : 0
+    const validHeightmap = (flatHeightmap as number[]).map((h) =>
+      typeof h === "number" && !isNaN(h) ? h : 0,
     );
 
     res.json({
@@ -401,21 +405,20 @@ router.get('/mountain/:x/:z', async (req, res) => {
         heightmap: validHeightmap,
         biomes: chunk.biomes,
         features: chunk.features,
-        generated: chunk.generated
-      }
+        generated: chunk.generated,
+      },
     });
-
   } catch (error) {
-    logger.error('Failed to generate mountain chunk', {
-      service: 'WorldGenAPI',
+    genLogger.error("Failed to generate mountain chunk", {
+      service: "WorldGenAPI",
       chunkX: req.params.x,
       chunkZ: req.params.z,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
       success: false,
-      error: 'Failed to generate mountain terrain'
+      error: "Failed to generate mountain terrain",
     });
   }
 });

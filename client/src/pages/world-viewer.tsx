@@ -27,7 +27,7 @@ export default function WorldViewer() {
     const baseChunkSize = 64; // local plane units
     const terrainScale = 4.0; // scales plane to world
     const heightScale = 2.0; // vertical exaggeration
-    const segments = 63; // segments per side (=> 64 verts per side)
+    const segments = 64; // segments per side (=> 64 verts per side)
     const vertsPerSide = segments + 1;
     const chunkWorldSize = baseChunkSize * terrainScale; // 256 world units
 

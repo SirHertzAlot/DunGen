@@ -148,6 +148,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 mb-2">
+              <Navigation />
               <Gamepad2 className="h-8 w-8 text-primary" />
               <h1 className="text-3xl font-bold">MMORPG Backend Dashboard</h1>
               {/* Pass healthData prop to SystemHealthBadge */}

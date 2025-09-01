@@ -26,7 +26,17 @@ export default function WorldViewer() {
   const queryClient = new QueryClient();
 
   // Load tiled terrain chunks with perfect edge matching
-  const loadTerrainChunks = async (scene: any, THREE: any) => {
+  // Utility: Seeded RNG (Mulberry32)
+  function mulberry32(a: number) {
+    return function () {
+      var t = (a += 0x6d2b79f5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const loadTerrainChunks = async (scene: any, THREE: any, seed: number) => {
     const baseChunkSize = 64; // local plane units
     const terrainScale = 4.0; // scales plane to world
     const heightScale = 2.0; // vertical exaggeration
@@ -266,8 +276,8 @@ export default function WorldViewer() {
 
       const p = (async () => {
         try {
-          // API expects chunk indices (i, j)
-          const response = await fetch(`/api/worldgen/chunk/${i}/${j}`);
+          // API expects chunk indices (i, j) and now a seed!
+          const response = await fetch(`/api/worldgen/chunk/${i}/${j}?seed=${seed}`);
           const data = await response.json();
 
           if (data.success && data.data.heightmap) {
@@ -310,6 +320,8 @@ export default function WorldViewer() {
               }
             } else {
               // Deterministic world-space fallback so edges align between chunks
+              // Add seeded randomness for fallback!
+              const rand = mulberry32(seed + i * 1000 + j); // Vary per chunk!
               for (let vi = 0; vi < pos.length; vi += 3) {
                 const localX = pos[vi + 0]; // [-chunkWorldSize/2, +chunkWorldSize/2]
                 const localY = pos[vi + 1]; // plane's second horizontal axis before rotation
@@ -321,6 +333,9 @@ export default function WorldViewer() {
                 h += Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 4;
                 h += Math.sin(worldX * 0.1) * Math.cos(worldZ * 0.1) * 2;
                 h += Math.sin(worldX * 0.2) * Math.cos(worldZ * 0.15) * 1;
+
+                // Add seeded noise for variety
+                h += (rand() - 0.5) * 2; // Range [-1, 1]
 
                 pos[vi + 2] = h; // set Z component as height (before rotation)
               }
@@ -358,7 +373,9 @@ export default function WorldViewer() {
             chunkMap.set(key, mesh);
 
             console.log(
-              `Loaded terrain chunk index (${i}, ${j}) at world (${x.toFixed(1)}, ${z.toFixed(1)}) with biome: ${biome.type || "grassland"}`,
+              `Loaded terrain chunk index (${i}, ${j}) at world (${x.toFixed(
+                1,
+              )}, ${z.toFixed(1)}) with biome: ${biome.type || "grassland"}`,
             );
           } else {
             console.warn(

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 // Logger interface for DRY principle
 export interface ILogger {
   info(message: string, context?: any): void;
-  error(message: string, error?: Error, context?: any): void;
+  error(message: string, error: Error, context?: any): void;
   healthCheck(message: string, context?: any): void;
   warn(message: string, context?: any): void;
   debug(message: string, context?: any): void;
@@ -103,10 +103,10 @@ class MMORPGLogger implements ILogger {
     this.logger.info(message, context);
   }
 
-  error(message: string, error?: Error, context: any = {}): void {
+  error(message: string, error: Error, context: any = {}): void {
     this.logger.error(message, {
       ...context,
-      error: error?.message,
+      error: error.message,
       stack: error?.stack,
     });
   }
