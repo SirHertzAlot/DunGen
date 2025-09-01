@@ -14,9 +14,15 @@ try {
     service: "WorldGenAPI",
   });
 } catch (error) {
-  genLogger.error("Failed to initialize terrain generator - WorldGenAPI", {
-    error: error instanceof Error ? error.message : "Unknown error",
-  });
+  const errorMessage =
+    error instanceof Error ? error : new Error(String(error));
+  genLogger.error(
+    "Failed to initialize terrain generator - WorldGenAPI",
+    errorMessage,
+    {
+      service: "WorldGenAPI",
+    },
+  );
 }
 
 // Get terrain chunk data
@@ -73,12 +79,12 @@ router.get("/chunk/:x/:z", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error(
-      `Failed to get terrain chunk - WorldGen API - ${req.params.x} - ${req.params.z}`,
-      {
-        error: `${error.message}`,
-      },
-    );
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get terrain chunk - WorldGen API", errObj, {
+      x: req.params.x,
+      z: req.params.z,
+      service: "WorldGenAPI",
+    });
 
     res.status(500).json({
       success: false,
@@ -110,12 +116,12 @@ router.get("/height/:x/:z", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error(
-      `Failed to get height at position - WorldGen API - ${req.params.x} - ${req.params.z}`,
-      {
-        error: `${error.message}`,
-      },
-    );
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get height at position - WorldGen API", errObj, {
+      x: req.params.x,
+      z: req.params.z,
+      service: "WorldGenAPI",
+    });
 
     res.status(500).json({
       success: false,
@@ -147,11 +153,13 @@ router.get("/biome/:x/:z", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to get biome at position", {
+    const errorMessage =
+      error instanceof Error ? error : new Error(String("Unknown error"));
+    genLogger.error("Failed to get biome at position", errorMessage, {
       service: "WorldGenAPI",
       worldX: req.params.x,
       worldZ: req.params.z,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: error instanceof Error ? error : "Unknown error",
     });
 
     res.status(500).json({
@@ -189,10 +197,10 @@ router.get("/features", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to get features in region", {
-      service: "WorldGenAPI",
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get features in region", errObj, {
       region: req.query,
-      error: error instanceof Error ? error.message : "Unknown error",
+      service: "WorldGenAPI",
     });
 
     res.status(500).json({
@@ -220,9 +228,9 @@ router.get("/config", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to get world generation config", {
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get terrain chunk - WorldGen API", errObj, {
       service: "WorldGenAPI",
-      error: error instanceof Error ? error.message : "Unknown error",
     });
 
     res.status(500).json({
@@ -280,7 +288,8 @@ router.get("/region/:minX/:minZ/:maxX/:maxZ", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to get region chunks", {
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get terrain chunk - WorldGen API", errObj, {
       service: "WorldGenAPI",
       region: [
         req.params.minX,
@@ -288,9 +297,7 @@ router.get("/region/:minX/:minZ/:maxX/:maxZ", async (req, res) => {
         req.params.maxX,
         req.params.maxZ,
       ],
-      error: error instanceof Error ? error.message : "Unknown error",
     });
-
     res.status(500).json({
       success: false,
       error: "Failed to generate region chunks",
@@ -357,13 +364,12 @@ router.get("/heightmap/:x/:z", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to export heightmap", {
-      service: "WorldGenAPI",
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to get terrain chunk - WorldGen API", errObj, {
       chunkX: req.params.x,
       chunkZ: req.params.z,
-      error: error instanceof Error ? error.message : "Unknown error",
+      service: "WorldGenAPI",
     });
-
     res.status(500).json({
       success: false,
       error: "Failed to export heightmap",
@@ -409,13 +415,12 @@ router.get("/mountain/:x/:z", async (req, res) => {
       },
     });
   } catch (error) {
-    genLogger.error("Failed to generate mountain chunk", {
-      service: "WorldGenAPI",
+    const errObj = error instanceof Error ? error : new Error(String(error));
+    genLogger.error("Failed to generate mountain chunk", errObj, {
       chunkX: req.params.x,
       chunkZ: req.params.z,
-      error: error instanceof Error ? error.message : "Unknown error",
+      service: "WorldGenAPI",
     });
-
     res.status(500).json({
       success: false,
       error: "Failed to generate mountain terrain",
