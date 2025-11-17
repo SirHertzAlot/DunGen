@@ -128,9 +128,30 @@ export class TerrainGenerator {
 
   // Generate or retrieve a terrain chunk
   public async getChunk(chunkX: number, chunkZ: number): Promise<TerrainChunk> {
-    // DISABLE CACHING FOR HEIGHTMAP TESTING - Always generate fresh chunks
-    // This ensures we get varied terrain for quality assessment
+    const chunkKey = `${chunkX},${chunkZ}`;
+    
+    // ENABLE CACHING for edge normalization (chunks need to reference neighbors)
+    if (this.chunkCache.has(chunkKey)) {
+      const cached = this.chunkCache.get(chunkKey)!;
+      cached.lastAccessed = Date.now();
+      return cached;
+    }
+    
+    // Check if this chunk is already being generated to avoid duplicates
+    if (this.generationQueue.has(chunkKey)) {
+      // Wait a bit and try again
+      await new Promise(resolve => setTimeout(resolve, 50));
+      return this.getChunk(chunkX, chunkZ);
+    }
+    
+    this.generationQueue.add(chunkKey);
     const chunk = await this.generateChunk(chunkX, chunkZ);
+    this.chunkCache.set(chunkKey, chunk);
+    this.generationQueue.delete(chunkKey);
+    
+    // Manage cache size
+    this.manageCacheSize();
+    
     return chunk;
   }
 
@@ -159,15 +180,21 @@ export class TerrainGenerator {
     // Create unique seed for this chunk
     const chunkSeed = this.hashChunkCoords(chunkX, chunkZ);
     
+    // Determine geographic feature type for this chunk
+    const featureType = this.determineGeographicFeature(chunkX, chunkZ, chunkSeed);
+    
+    // Get terrain parameters based on feature type
+    const terrainParams = this.getTerrainParameters(featureType, chunkX, chunkZ);
+    
     // USING THREE.TERRAIN.JS LIBRARY - COMPREHENSIVE TERRAIN GENERATION
-    // Create terrain using the proper THREE.Terrain() function with advanced algorithms
+    // Create terrain using feature-specific algorithm
     const terrainScene = Terrain({
-      easing: Terrain.Linear,
-      frequency: 2.5 + (chunkX * 0.1) + (chunkZ * 0.1), // Vary frequency per chunk
-      heightmap: this.selectHeightmapAlgorithm(chunkX, chunkZ, chunkSeed),
-      maxHeight: 200 + (Math.abs(chunkX + chunkZ) * 15), // Massive mountains up to 350 height
-      minHeight: -20,
-      steps: 1,
+      easing: terrainParams.easing,
+      frequency: terrainParams.frequency,
+      heightmap: terrainParams.algorithm,
+      maxHeight: terrainParams.maxHeight,
+      minHeight: terrainParams.minHeight,
+      steps: terrainParams.steps,
       xSegments: size - 1,
       xSize: size,
       ySegments: size - 1,
@@ -178,8 +205,8 @@ export class TerrainGenerator {
     // Get the geometry from the generated terrain scene
     const geometry = terrainScene.children[0].geometry;
     
-    // Apply additional terrain modifications for sophisticated landscapes
-    this.applyAdvancedTerrainModifications(geometry, chunkX, chunkZ, chunkSeed);
+    // Apply feature-specific terrain modifications
+    this.applyFeatureSpecificModifications(geometry, featureType, chunkX, chunkZ, chunkSeed);
     
     // Extract heightmap from the geometry
     const vertices = geometry.attributes.position.array;
@@ -190,9 +217,12 @@ export class TerrainGenerator {
       for (let x = 0; x < size; x++) {
         const index = z * size + x;
         const height = vertices[index * 3 + 1]; // Y component is height
-        heightmap[z][x] = Math.max(0, Math.min(350, height + 50)); // Clamp and offset for massive mountains
+        heightmap[z][x] = Math.max(0, Math.min(400, height + 50));
       }
     }
+    
+    // CRITICAL: Normalize edges with neighboring chunks for seamless blending
+    await this.normalizeChunkEdges(heightmap, chunkX, chunkZ, size);
     
     const chunk: TerrainChunk = {
       id: uuidv4(),
@@ -202,7 +232,7 @@ export class TerrainGenerator {
       heightmap,
       biomes: Array.from({ length: size }, () => 
         Array.from({ length: size }, () => ({
-          name: 'grassland',
+          name: featureType,
           temperature: 0.5,
           humidity: 0.5,
           color: [100, 150, 50]
@@ -218,6 +248,7 @@ export class TerrainGenerator {
       chunkId: chunk.id,
       position: [chunkX, chunkZ],
       generationTime,
+      featureType,
       features: chunk.features.length
     });
 
@@ -633,6 +664,309 @@ export class TerrainGenerator {
   }
   
   // ADVANCED TERRAIN GENERATION METHODS BASED ON THREE.Terrain DOCUMENTATION
+  
+  // Determine geographic feature type for diversity
+  private determineGeographicFeature(chunkX: number, chunkZ: number, seed: number): string {
+    // Use world position to create geographic zones
+    const zoneX = Math.floor(chunkX / 4);
+    const zoneZ = Math.floor(chunkZ / 4);
+    const zoneHash = ((zoneX * 73856093) ^ (zoneZ * 19349663) ^ seed) % 100;
+    
+    // Create diverse geographic distribution
+    if (zoneHash < 15) return 'plains';
+    if (zoneHash < 30) return 'rolling_hills';
+    if (zoneHash < 42) return 'mountains';
+    if (zoneHash < 50) return 'plateau';
+    if (zoneHash < 58) return 'canyon';
+    if (zoneHash < 64) return 'mesa';
+    if (zoneHash < 70) return 'river_valley';
+    if (zoneHash < 76) return 'coastal_cliffs';
+    if (zoneHash < 82) return 'badlands';
+    if (zoneHash < 88) return 'karst';
+    if (zoneHash < 94) return 'volcanic';
+    return 'grassland';
+  }
+  
+  // Get terrain parameters based on geographic feature
+  private getTerrainParameters(featureType: string, chunkX: number, chunkZ: number): any {
+    const baseParams = {
+      easing: Terrain.Linear,
+      frequency: 2.5,
+      maxHeight: 100,
+      minHeight: 0,
+      steps: 1,
+      algorithm: Terrain.DiamondSquare
+    };
+    
+    switch (featureType) {
+      case 'plains':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Perlin,
+          frequency: 1.0,
+          maxHeight: 15,
+          minHeight: 0,
+          easing: Terrain.EaseInOut
+        };
+        
+      case 'rolling_hills':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Simplex,
+          frequency: 2.0,
+          maxHeight: 45,
+          minHeight: 10
+        };
+        
+      case 'mountains':
+        return {
+          ...baseParams,
+          algorithm: Terrain.DiamondSquare,
+          frequency: 3.5,
+          maxHeight: 280,
+          minHeight: 40
+        };
+        
+      case 'plateau':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Value,
+          frequency: 1.5,
+          maxHeight: 120,
+          minHeight: 100,
+          steps: 3,
+          easing: Terrain.InExpo
+        };
+        
+      case 'canyon':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Fault,
+          frequency: 4.0,
+          maxHeight: 100,
+          minHeight: -60
+        };
+        
+      case 'mesa':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Cosine,
+          frequency: 2.0,
+          maxHeight: 150,
+          minHeight: 30,
+          steps: 4
+        };
+        
+      case 'river_valley':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Simplex,
+          frequency: 1.8,
+          maxHeight: 60,
+          minHeight: -20
+        };
+        
+      case 'coastal_cliffs':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Fault,
+          frequency: 3.0,
+          maxHeight: 80,
+          minHeight: 0,
+          steps: 2
+        };
+        
+      case 'badlands':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Weierstrass,
+          frequency: 3.5,
+          maxHeight: 90,
+          minHeight: 10
+        };
+        
+      case 'karst':
+        return {
+          ...baseParams,
+          algorithm: Terrain.Perlin,
+          frequency: 4.0,
+          maxHeight: 110,
+          minHeight: -40
+        };
+        
+      case 'volcanic':
+        return {
+          ...baseParams,
+          algorithm: Terrain.DiamondSquare,
+          frequency: 2.8,
+          maxHeight: 220,
+          minHeight: 20
+        };
+        
+      default: // grassland
+        return {
+          ...baseParams,
+          algorithm: Terrain.Perlin,
+          frequency: 2.2,
+          maxHeight: 60,
+          minHeight: 5
+        };
+    }
+  }
+  
+  // Apply feature-specific modifications
+  private applyFeatureSpecificModifications(geometry: THREE.BufferGeometry, featureType: string, chunkX: number, chunkZ: number, seed: number): void {
+    const secondarySeed = seed + 12345;
+    const tertiarySeed = seed + 54321;
+    
+    switch (featureType) {
+      case 'plains':
+        // Very gentle rolling with minimal variation
+        Terrain.Smooth(geometry, { iterations: 3 });
+        break;
+        
+      case 'rolling_hills':
+        // Add gentle undulation
+        Terrain.Perlin(geometry, { seed: secondarySeed, frequency: 0.03, amplitude: 15 });
+        Terrain.Smooth(geometry, { iterations: 1 });
+        break;
+        
+      case 'mountains':
+        // Dramatic peaks with erosion
+        Terrain.Simplex(geometry, { seed: secondarySeed, frequency: 0.04, amplitude: 40 });
+        Terrain.Erosion(geometry, { iterations: 3, amount: 20 });
+        Terrain.Fault(geometry, { seed: tertiarySeed, iterations: 2, maxHeight: 50, minHeight: -30 });
+        break;
+        
+      case 'plateau':
+        // Flat top with steep edges
+        Terrain.Clamp(geometry, { minHeight: 90, maxHeight: 120, fadeDistance: 15 });
+        Terrain.Smooth(geometry, { iterations: 1 });
+        break;
+        
+      case 'canyon':
+        // Deep valleys with sharp walls
+        Terrain.Fault(geometry, { seed: secondarySeed, iterations: 5, maxHeight: 30, minHeight: -70 });
+        Terrain.Step(geometry, { levels: 6 });
+        break;
+        
+      case 'mesa':
+        // Isolated flat-topped formations
+        Terrain.Clamp(geometry, { minHeight: 80, maxHeight: 150, fadeDistance: 20 });
+        Terrain.Step(geometry, { levels: 4 });
+        break;
+        
+      case 'river_valley':
+        // U-shaped valley with river channel
+        Terrain.Simplex(geometry, { seed: secondarySeed, frequency: 0.1, amplitude: -30 });
+        Terrain.Erosion(geometry, { iterations: 5, amount: 25 });
+        Terrain.Smooth(geometry, { iterations: 2 });
+        break;
+        
+      case 'coastal_cliffs':
+        // Sharp dropoffs
+        Terrain.Fault(geometry, { seed: secondarySeed, iterations: 4, maxHeight: 60, minHeight: -20 });
+        Terrain.Step(geometry, { levels: 3 });
+        break;
+        
+      case 'badlands':
+        // Eroded, layered appearance
+        Terrain.Fault(geometry, { seed: secondarySeed, iterations: 6, maxHeight: 40, minHeight: -30 });
+        Terrain.Erosion(geometry, { iterations: 4, amount: 30 });
+        Terrain.Step(geometry, { levels: 8 });
+        break;
+        
+      case 'karst':
+        // Sinkholes and caves (surface pitting)
+        Terrain.Turbulence(geometry, { seed: secondarySeed, frequency: 0.08, amplitude: 40 });
+        Terrain.Smooth(geometry, { iterations: 1 });
+        break;
+        
+      case 'volcanic':
+        // Volcanic cones and features
+        if ((chunkX + chunkZ) % 3 === 0) {
+          Terrain.Volcanoes(geometry, { seed: secondarySeed, count: 2, amplitude: 180 });
+        }
+        Terrain.Turbulence(geometry, { seed: tertiarySeed, frequency: 0.05, amplitude: 30 });
+        break;
+        
+      default:
+        // Default grassland modifications
+        Terrain.Perlin(geometry, { seed: secondarySeed, frequency: 0.02, amplitude: 20 });
+        Terrain.Smooth(geometry, { iterations: 1 });
+    }
+  }
+  
+  // CRITICAL: Normalize edges with neighboring chunks for seamless transitions
+  private async normalizeChunkEdges(heightmap: number[][], chunkX: number, chunkZ: number, size: number): Promise<void> {
+    const blendWidth = 8; // Number of pixels to blend at edges
+    
+    // Check and blend with north neighbor (z-1)
+    const northKey = `${chunkX},${chunkZ - 1}`;
+    if (this.chunkCache.has(northKey)) {
+      const northChunk = this.chunkCache.get(northKey)!;
+      for (let x = 0; x < size; x++) {
+        const neighborHeight = northChunk.heightmap[x][size - 1];
+        const currentHeight = heightmap[x][0];
+        
+        // Blend the edge
+        for (let blend = 0; blend < blendWidth && blend < size; blend++) {
+          const t = blend / blendWidth;
+          heightmap[x][blend] = currentHeight * t + neighborHeight * (1 - t);
+        }
+      }
+    }
+    
+    // Check and blend with south neighbor (z+1)
+    const southKey = `${chunkX},${chunkZ + 1}`;
+    if (this.chunkCache.has(southKey)) {
+      const southChunk = this.chunkCache.get(southKey)!;
+      for (let x = 0; x < size; x++) {
+        const neighborHeight = southChunk.heightmap[x][0];
+        const currentHeight = heightmap[x][size - 1];
+        
+        // Blend the edge
+        for (let blend = 0; blend < blendWidth && blend < size; blend++) {
+          const t = blend / blendWidth;
+          const z = size - 1 - blend;
+          heightmap[x][z] = currentHeight * t + neighborHeight * (1 - t);
+        }
+      }
+    }
+    
+    // Check and blend with west neighbor (x-1)
+    const westKey = `${chunkX - 1},${chunkZ}`;
+    if (this.chunkCache.has(westKey)) {
+      const westChunk = this.chunkCache.get(westKey)!;
+      for (let z = 0; z < size; z++) {
+        const neighborHeight = westChunk.heightmap[size - 1][z];
+        const currentHeight = heightmap[0][z];
+        
+        // Blend the edge
+        for (let blend = 0; blend < blendWidth && blend < size; blend++) {
+          const t = blend / blendWidth;
+          heightmap[blend][z] = currentHeight * t + neighborHeight * (1 - t);
+        }
+      }
+    }
+    
+    // Check and blend with east neighbor (x+1)
+    const eastKey = `${chunkX + 1},${chunkZ}`;
+    if (this.chunkCache.has(eastKey)) {
+      const eastChunk = this.chunkCache.get(eastKey)!;
+      for (let z = 0; z < size; z++) {
+        const neighborHeight = eastChunk.heightmap[0][z];
+        const currentHeight = heightmap[size - 1][z];
+        
+        // Blend the edge
+        for (let blend = 0; blend < blendWidth && blend < size; blend++) {
+          const t = blend / blendWidth;
+          const x = size - 1 - blend;
+          heightmap[x][z] = currentHeight * t + neighborHeight * (1 - t);
+        }
+      }
+    }
+  }
   
   private selectHeightmapAlgorithm(chunkX: number, chunkZ: number, seed: number): any {
     // Use different terrain algorithms based on chunk position for varied landscapes
