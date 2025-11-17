@@ -74,6 +74,15 @@ app.use((req, res, next) => {
       
       log.info(`serving on port ${port}`);
 
+      // Initialize infrastructure systems first (event bus, etc.)
+      try {
+        const { infrastructureManager } = await import("../config/InfrastructureManager");
+        await infrastructureManager.initialize();
+        log.info(`Infrastructure systems initialized (event bus, cache, etc.)`);
+      } catch (error) {
+        log.error(`Failed to initialize infrastructure systems:`, error);
+      }
+
       // Initialize ECS and Unity systems after server starts
       try {
         const { ecsManager } = await import("../game/ecs/ECSManager");
@@ -89,9 +98,9 @@ app.use((req, res, next) => {
         // Initialize ETL service
         await etlService.initialize(log);
 
-        log.info(`[ecs] Unity ECS systems initialized - WebSocket on port 8080`);
+        log.info(`Unity ECS systems initialized - WebSocket on port 8080`);
       } catch (error) {
-        log.error(`[ecs] Failed to initialize game systems:`, error);
+        log.error(`Failed to initialize game systems:`, error);
       }
     },
   );
