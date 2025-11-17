@@ -21,6 +21,7 @@ interface TerrainConfig {
   persistence: number;
   lacunarity: number;
   seed: number;
+
   minHeight: number;
   maxHeight: number;
   erosionIterations: number;
