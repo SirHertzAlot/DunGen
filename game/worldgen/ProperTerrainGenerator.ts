@@ -21,7 +21,6 @@ export interface BiomeType {
     | "grassland"
     | "forest"
     | "desert"
-    | "mountain"
     | "swamp"
     | "tundra"
     | "ocean"
@@ -88,7 +87,6 @@ export class ProperTerrainGenerator {
       lastAccessed: Date.now(),
     };
 
-    // Apply smoothing pass to soften edges
     this.applySmoothingPass(heightmap, size);
 
     this.chunkCache.set(cacheKey, chunk);
@@ -98,7 +96,7 @@ export class ProperTerrainGenerator {
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated terrain chunk with height variance restoration", {
+    log.info("Generated terrain chunk using algorithm logic", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
@@ -141,17 +139,9 @@ export class ProperTerrainGenerator {
         }
         
         noiseValue /= maxAmplitude;
-
-        // Restore height variance while maintaining 0-1 range
-        // We use the noiseValue directly as height, but ensure it captures the full 0-1 range
-        // based on the algorithm's typical output (which tends to cluster in the middle)
-        let finalHeight = (noiseValue - 0.2) / 0.6; // Scale 0.2-0.8 range to 0.0-1.0
         
-        // Re-apply biome-specific height scales and base heights for 3D depth
-        // This prevents the "flat" look by ensuring different biomes have different vertical footprints
-        finalHeight = (finalHeight * biome.heightScale) + biome.baseHeight;
-        
-        heightmap[z][x] = Math.max(0, Math.min(1, finalHeight));
+        // This noiseValue (0-1) IS the height value.
+        heightmap[z][x] = Math.max(0, Math.min(1, noiseValue));
       }
     }
 
@@ -182,26 +172,15 @@ export class ProperTerrainGenerator {
     const noiseVal = (this.noise2D(x, z) + 1) / 2;
 
     let biomeType: BiomeType["type"] = "grassland";
-    let heightScale = 0.2;
-    let baseHeight = 0.3;
 
-    // Mapping biomes to thresholds from script and applying vertical scaling
     if (noiseVal < 0.4) {
       biomeType = "ocean";
-      heightScale = 0.1;
-      baseHeight = 0.0; // Sea level
     } else if (noiseVal < 0.5) {
       biomeType = "desert";
-      heightScale = 0.1;
-      baseHeight = 0.15; // Low-lying
     } else if (noiseVal < 0.7) {
       biomeType = "grassland";
-      heightScale = 0.25;
-      baseHeight = 0.3; // Rolling hills
     } else {
       biomeType = "forest";
-      heightScale = 0.5;
-      baseHeight = 0.5; // High terrain/Mountains
     }
 
     return {
@@ -210,8 +189,8 @@ export class ProperTerrainGenerator {
       moisture: noiseVal,
       temperature: noiseVal,
       noiseScale: 0.05,
-      heightScale,
-      baseHeight,
+      heightScale: 1.0,
+      baseHeight: 0.0,
     };
   }
 }

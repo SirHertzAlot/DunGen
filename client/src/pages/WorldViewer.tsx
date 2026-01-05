@@ -302,22 +302,20 @@ export default function WorldViewer() {
               const heightmapRows = heightmap2D.length;
               const heightmapCols = heightmap2D[0].length;
 
-              for (let vi = 2; vi < pos.length; vi += 3) {
-                const vertexIndex = (vi - 2) / 3;
-                const row = Math.floor(vertexIndex / vertsPerSide);
-                const col = vertexIndex % vertsPerSide;
+            for (let vi = 2; vi < pos.length; vi += 3) {
+              const vertexIndex = (vi - 2) / 3;
+              const row = Math.floor(vertexIndex / vertsPerSide);
+              const col = vertexIndex % vertsPerSide;
 
-                // Scale row/col to heightmap indices (inclusive range mapping)
-                const hr = Math.floor(
-                  (row / (vertsPerSide - 1)) * (heightmapRows - 1),
-                );
-                const hc = Math.floor(
-                  (col / (vertsPerSide - 1)) * (heightmapCols - 1),
-                );
+              const hr = Math.floor((row / (vertsPerSide - 1)) * (heightmapRows - 1));
+              const hc = Math.floor((col / (vertsPerSide - 1)) * (heightmapCols - 1));
 
-                const height = heightmap2D[hr]?.[hc];
-                pos[vi] = Number.isFinite(height) ? height * heightScale : 0;
-              }
+              const noiseValue = heightmap2D[hr]?.[hc] ?? 0;
+              
+              // Algorithm's height calculation for the 3D mesh:
+              // We map the noiseValue directly to height using vertical exaggeration
+              pos[vi] = noiseValue * heightScale;
+            }
             } else {
               // Deterministic world-space fallback so edges align between chunks
               // Add seeded randomness for fallback!
