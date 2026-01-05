@@ -48,9 +48,10 @@ export class ProperTerrainGenerator {
   private static instance: ProperTerrainGenerator;
   private noise2D: (x: number, y: number) => number;
   private seed: number = 12345;
+  private chunkCache: Map<string, TerrainChunk> = new Map();
+  private readonly DEFAULT_CHUNK_SIZE = 256; // Increased from 64
 
   private constructor() {
-    // Simplex noise is more backend-stable than p5.js
     this.noise2D = createNoise2D();
   }
 
@@ -64,18 +65,15 @@ export class ProperTerrainGenerator {
   public generateChunk(
     chunkX: number,
     chunkZ: number,
-    size: number = 64,
+    size: number = this.DEFAULT_CHUNK_SIZE,
   ): TerrainChunk {
-    const biome = this.getBiome(chunkX, chunkZ);
+    const cacheKey = `${chunkX},${chunkZ},${size}`;
+    if (this.chunkCache.has(cacheKey)) {
+      return this.chunkCache.get(cacheKey)!;
+    }
 
-    // Generate heightmap using Simplex noise
-    // We'll mimic the p5 noise behavior: multiple octaves
-    const heightmap = this.generateHeightmap(
-      chunkX,
-      chunkZ,
-      size,
-      biome
-    );
+    const biome = this.getBiome(chunkX, chunkZ);
+    const heightmap = this.generateHeightmap(chunkX, chunkZ, size, biome);
 
     const chunk: TerrainChunk = {
       id: uuidv4(),
@@ -89,10 +87,19 @@ export class ProperTerrainGenerator {
       lastAccessed: Date.now(),
     };
 
-    log.info("Generated terrain chunk with Simplex noise", {
+    this.chunkCache.set(cacheKey, chunk);
+    
+    // Simple cache eviction if too large
+    if (this.chunkCache.size > 100) {
+      const oldestKey = this.chunkCache.keys().next().value;
+      if (oldestKey) this.chunkCache.delete(oldestKey);
+    }
+
+    log.info("Generated large terrain chunk", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
+      size,
       biome: biome.type,
     });
 
@@ -106,28 +113,25 @@ export class ProperTerrainGenerator {
     biome: BiomeType
   ): number[][] {
     const heightmap: number[][] = [];
-    const zoomFactor = 100;
+    const zoomFactor = 200; // Adjusted for larger chunks
     const xOffset = 10000;
     const yOffset = 10000;
+    const edgeBlendSize = 8; // Number of pixels to blend at edges
 
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
-        // Map chunk local coords to noise space
         const worldX = (chunkX * size) + x;
         const worldZ = (chunkZ * size) + z;
         
         const xVal = worldX / zoomFactor + xOffset;
         const yVal = worldZ / zoomFactor + yOffset;
         
-        // Simplex noise returns -1 to 1, we map to 0-1
-        // We use fractional Brownian motion (fBm) to mimic noiseDetail(9, 0.5)
         let noiseValue = 0;
         let amplitude = 1;
         let frequency = 1;
         let maxAmplitude = 0;
         
-        // 9 octaves with 0.5 persistence
         for (let i = 0; i < 9; i++) {
           noiseValue += amplitude * (this.noise2D(xVal * frequency, yVal * frequency) + 1) / 2;
           maxAmplitude += amplitude;
@@ -137,14 +141,23 @@ export class ProperTerrainGenerator {
         
         noiseValue /= maxAmplitude;
         
-        // Normalize noiseValue as script assumes min is 0.2 and max is 0.8
         let normalized = (noiseValue - 0.2) / 0.6;
         normalized = Math.max(0, Math.min(1, normalized));
         
-        // Scale by biome height and add elevation base
         let height = (normalized * biome.heightScale) + (biome.elevation * 20);
+
+        // Edge Normalization: Blend edges towards a common height to ensure seamless stitching
+        // This is a simpler alternative to referencing neighbors directly
+        const distFromEdgeX = Math.min(x, size - 1 - x);
+        const distFromEdgeZ = Math.min(z, size - 1 - z);
+        const minDistFromEdge = Math.min(distFromEdgeX, distFromEdgeZ);
+
+        if (minDistFromEdge < edgeBlendSize) {
+          const blendFactor = minDistFromEdge / edgeBlendSize;
+          const targetEdgeHeight = 30; // Common height for all edges
+          height = height * blendFactor + targetEdgeHeight * (1 - blendFactor);
+        }
         
-        // Clamp to 0-100 range
         heightmap[z][x] = Math.max(0, Math.min(100, height));
       }
     }
@@ -156,7 +169,6 @@ export class ProperTerrainGenerator {
     const x = chunkX * 0.1;
     const z = chunkZ * 0.1;
 
-    // Determine biome using noise
     const elevation = (this.noise2D(x, z) + 1) / 2;
     const temperature = (this.noise2D(x + 100, z + 100) + 1) / 2;
     const moisture = (this.noise2D(x + 200, z + 200) + 1) / 2;
