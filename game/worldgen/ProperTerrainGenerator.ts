@@ -89,6 +89,9 @@ export class ProperTerrainGenerator {
 
     this.chunkCache.set(cacheKey, chunk);
     
+    // Apply smoothing pass to soften edges and peaks
+    this.applySmoothingPass(heightmap, size);
+    
     if (this.chunkCache.size > 100) {
       const oldestKey = this.chunkCache.keys().next().value;
       if (oldestKey) this.chunkCache.delete(oldestKey);
@@ -182,6 +185,27 @@ export class ProperTerrainGenerator {
     }
 
     return heightmap;
+  }
+
+  private applySmoothingPass(heightmap: number[][], size: number): void {
+    const smoothed = JSON.parse(JSON.stringify(heightmap)); // Deep copy for source
+    
+    for (let z = 1; z < size - 1; z++) {
+      for (let x = 1; x < size - 1; x++) {
+        let total = 0;
+        let count = 0;
+        
+        // 3x3 Box blur
+        for (let sz = -1; sz <= 1; sz++) {
+          for (let sx = -1; sx <= 1; sx++) {
+            total += smoothed[z + sz][x + sx];
+            count++;
+          }
+        }
+        
+        heightmap[z][x] = total / count;
+      }
+    }
   }
 
   private getBiome(chunkX: number, chunkZ: number): BiomeType {
