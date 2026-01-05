@@ -98,7 +98,7 @@ export class ProperTerrainGenerator {
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated terrain chunk with rollback algorithm logic", {
+    log.info("Generated terrain chunk using algorithm logic", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
@@ -115,9 +115,9 @@ export class ProperTerrainGenerator {
     biome: BiomeType
   ): number[][] {
     const heightmap: number[][] = [];
-    const zoomFactor = 100; // From algorithm script
-    const xOffset = 10000; // From algorithm script
-    const yOffset = 10000; // From algorithm script
+    const zoomFactor = 100; // From script
+    const xOffset = 10000; // From script
+    const yOffset = 10000; // From script
 
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
@@ -145,20 +145,11 @@ export class ProperTerrainGenerator {
         
         noiseValue /= maxAmplitude;
 
-        // Apply algorithm's height mappings:
-        // 0.2 to 0.4: water (ocean)
-        // 0.4 to 0.5: sand (desert)
-        // 0.5 to 0.7: grass (grassland)
-        // 0.7 to 0.75: trees (forest/mountain)
+        // Apply algorithm's normalization logic:
+        // noiseValue is typically between 0 and 1 here.
+        // We maintain the 0-1 range as requested.
         
-        // Final height mapping to 0-1 range based on the algorithm's thresholds
-        let finalHeight = noiseValue;
-        
-        // We normalize noiseValue as the script assumes min is 0.2
-        finalHeight = (finalHeight - 0.2) / 0.6; // Scale 0.2-0.8 range to 0.0-1.0
-        finalHeight = Math.max(0, Math.min(1, finalHeight));
-        
-        heightmap[z][x] = finalHeight;
+        heightmap[z][x] = Math.max(0, Math.min(1, noiseValue));
       }
     }
 
