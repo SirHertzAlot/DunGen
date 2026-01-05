@@ -33,6 +33,7 @@ export interface BiomeType {
   temperature: number;
   noiseScale: number;
   heightScale: number;
+  baseHeight: number;
 }
 
 export interface TerrainFeature {
@@ -87,21 +88,20 @@ export class ProperTerrainGenerator {
       lastAccessed: Date.now(),
     };
 
-    this.chunkCache.set(cacheKey, chunk);
-    
     // Apply smoothing pass to soften edges and peaks
     this.applySmoothingPass(heightmap, size);
+
+    this.chunkCache.set(cacheKey, chunk);
     
     if (this.chunkCache.size > 100) {
       const oldestKey = this.chunkCache.keys().next().value;
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated large terrain chunk with neighbor sampling", {
+    log.info("Generated terrain chunk with biome height variance", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
-      size,
       biome: biome.type,
     });
 
@@ -118,20 +118,14 @@ export class ProperTerrainGenerator {
     const zoomFactor = 200;
     const xOffset = 10000;
     const yOffset = 10000;
-    const blendWidth = 16; // Wider blend for smoother mesh
+    const blendWidth = 32; // Increased for smoother biome transitions
 
-    // We use a shared noise space based on absolute world coordinates.
-    // This is the most reliable way to ensure edge values match perfectly without iterative "collapsing".
-    // Noise is deterministic, so sampling at the same world coordinates from different chunks
-    // will yield the exact same values.
-    
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
         const worldX = (chunkX * size) + x;
         const worldZ = (chunkZ * size) + z;
         
-        // Sampling multiple octaves of noise at absolute world coordinates
         const sampleHeight = (wx: number, wz: number) => {
           const xVal = wx / zoomFactor + xOffset;
           const yVal = wz / zoomFactor + yOffset;
@@ -152,35 +146,30 @@ export class ProperTerrainGenerator {
 
         let noiseValue = sampleHeight(worldX, worldZ);
         
+        // Normalize noiseValue
         let normalized = (noiseValue - 0.2) / 0.6;
         normalized = Math.max(0, Math.min(1, normalized));
         
-        // We also need to blend the BIOME effects at the edges to avoid biome height discrepancies
-        // For a true "mesh", we sample neighboring biome properties if near edges
         let effectiveHeightScale = biome.heightScale;
-        let effectiveElevation = biome.elevation;
+        let effectiveBaseHeight = biome.baseHeight;
 
         if (x < blendWidth || x > size - blendWidth || z < blendWidth || z > size - blendWidth) {
-          // Check neighbors
           const nx = x < blendWidth ? -1 : (x > size - blendWidth ? 1 : 0);
           const nz = z < blendWidth ? -1 : (z > size - blendWidth ? 1 : 0);
           
           if (nx !== 0 || nz !== 0) {
             const neighborBiome = this.getBiome(chunkX + nx, chunkZ + nz);
-            
-            // Calculate distance factor to neighbor
             let d = 1.0;
             if (nx !== 0) d = Math.min(d, (nx < 0 ? x : size - 1 - x) / blendWidth);
             if (nz !== 0) d = Math.min(d, (nz < 0 ? z : size - 1 - z) / blendWidth);
             
-            // Linear interpolate biome parameters
             effectiveHeightScale = neighborBiome.heightScale * (1 - d) + biome.heightScale * d;
-            effectiveElevation = neighborBiome.elevation * (1 - d) + biome.elevation * d;
+            effectiveBaseHeight = neighborBiome.baseHeight * (1 - d) + biome.baseHeight * d;
           }
         }
 
-        let height = (normalized * effectiveHeightScale) + (effectiveElevation * 20);
-        heightmap[z][x] = Math.max(0, Math.min(100, height));
+        let height = (normalized * effectiveHeightScale) + effectiveBaseHeight;
+        heightmap[z][x] = Math.max(0, Math.min(500, height)); // Increased max height for mountains
       }
     }
 
@@ -188,21 +177,18 @@ export class ProperTerrainGenerator {
   }
 
   private applySmoothingPass(heightmap: number[][], size: number): void {
-    const smoothed = JSON.parse(JSON.stringify(heightmap)); // Deep copy for source
+    const smoothed = JSON.parse(JSON.stringify(heightmap));
     
     for (let z = 1; z < size - 1; z++) {
       for (let x = 1; x < size - 1; x++) {
         let total = 0;
         let count = 0;
-        
-        // 3x3 Box blur
         for (let sz = -1; sz <= 1; sz++) {
           for (let sx = -1; sx <= 1; sx++) {
             total += smoothed[z + sz][x + sx];
             count++;
           }
         }
-        
         heightmap[z][x] = total / count;
       }
     }
@@ -212,35 +198,43 @@ export class ProperTerrainGenerator {
     const x = chunkX * 0.1;
     const z = chunkZ * 0.1;
 
-    // Use deterministic noise for biomes too, ensures neighbors agree on boundaries
     const elevation = (this.noise2D(x, z) + 1) / 2;
     const temperature = (this.noise2D(x + 100, z + 100) + 1) / 2;
     const moisture = (this.noise2D(x + 200, z + 200) + 1) / 2;
 
     let biomeType: BiomeType["type"] = "grassland";
-    let heightScale = 25;
-    let noiseScale = 0.05;
+    let heightScale = 40;
+    let baseHeight = 20;
 
-    if (elevation > 0.7) {
+    // Mountain: Highest (Grey)
+    if (elevation > 0.75) {
       biomeType = "mountain";
-      heightScale = 60;
-    } else if (elevation < 0.3) {
-      if (moisture > 0.6) {
-        biomeType = "marsh";
-        heightScale = 10;
-      } else {
-        biomeType = "desert";
-        heightScale = 20;
-      }
-    } else if (temperature > 0.6 && moisture < 0.4) {
-      biomeType = "desert";
-      heightScale = 25;
-    } else if (temperature < 0.3) {
-      biomeType = "tundra";
-      heightScale = 15;
-    } else if (moisture > 0.6) {
+      heightScale = 300; // Extreme variance for peaks
+      baseHeight = 150;  // High starting point
+    } 
+    // Forest: High (Dark Green)
+    else if (moisture > 0.65 && elevation > 0.4) {
       biomeType = "forest";
-      heightScale = 35;
+      heightScale = 60;
+      baseHeight = 40;
+    }
+    // Grassland: Medium (Green)
+    else if (elevation > 0.3) {
+      biomeType = "grassland";
+      heightScale = 30;
+      baseHeight = 20;
+    }
+    // Desert/Sand: Low (Sand color)
+    else if (elevation > 0.15) {
+      biomeType = "desert";
+      heightScale = 15;
+      baseHeight = 10;
+    }
+    // Ocean/Water: Lowest (Blue)
+    else {
+      biomeType = "ocean";
+      heightScale = 10;
+      baseHeight = 0;
     }
 
     return {
@@ -248,8 +242,9 @@ export class ProperTerrainGenerator {
       elevation,
       moisture,
       temperature,
-      noiseScale,
+      noiseScale: 0.05,
       heightScale,
+      baseHeight,
     };
   }
 }
