@@ -49,7 +49,7 @@ export class ProperTerrainGenerator {
   private noise2D: (x: number, y: number) => number;
   private seed: number = 12345;
   private chunkCache: Map<string, TerrainChunk> = new Map();
-  private readonly DEFAULT_CHUNK_SIZE = 256; // Increased from 64
+  private readonly DEFAULT_CHUNK_SIZE = 256;
 
   private constructor() {
     this.noise2D = createNoise2D();
@@ -89,13 +89,12 @@ export class ProperTerrainGenerator {
 
     this.chunkCache.set(cacheKey, chunk);
     
-    // Simple cache eviction if too large
     if (this.chunkCache.size > 100) {
       const oldestKey = this.chunkCache.keys().next().value;
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated large terrain chunk", {
+    log.info("Generated large terrain chunk with neighbor sampling", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
@@ -113,51 +112,71 @@ export class ProperTerrainGenerator {
     biome: BiomeType
   ): number[][] {
     const heightmap: number[][] = [];
-    const zoomFactor = 200; // Adjusted for larger chunks
+    const zoomFactor = 200;
     const xOffset = 10000;
     const yOffset = 10000;
-    const edgeBlendSize = 8; // Number of pixels to blend at edges
+    const blendWidth = 16; // Wider blend for smoother mesh
 
+    // We use a shared noise space based on absolute world coordinates.
+    // This is the most reliable way to ensure edge values match perfectly without iterative "collapsing".
+    // Noise is deterministic, so sampling at the same world coordinates from different chunks
+    // will yield the exact same values.
+    
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
         const worldX = (chunkX * size) + x;
         const worldZ = (chunkZ * size) + z;
         
-        const xVal = worldX / zoomFactor + xOffset;
-        const yVal = worldZ / zoomFactor + yOffset;
-        
-        let noiseValue = 0;
-        let amplitude = 1;
-        let frequency = 1;
-        let maxAmplitude = 0;
-        
-        for (let i = 0; i < 9; i++) {
-          noiseValue += amplitude * (this.noise2D(xVal * frequency, yVal * frequency) + 1) / 2;
-          maxAmplitude += amplitude;
-          amplitude *= 0.5;
-          frequency *= 2;
-        }
-        
-        noiseValue /= maxAmplitude;
+        // Sampling multiple octaves of noise at absolute world coordinates
+        const sampleHeight = (wx: number, wz: number) => {
+          const xVal = wx / zoomFactor + xOffset;
+          const yVal = wz / zoomFactor + yOffset;
+          
+          let val = 0;
+          let amp = 1;
+          let freq = 1;
+          let maxAmp = 0;
+          
+          for (let i = 0; i < 9; i++) {
+            val += amp * (this.noise2D(xVal * freq, yVal * freq) + 1) / 2;
+            maxAmp += amp;
+            amp *= 0.5;
+            freq *= 2;
+          }
+          return val / maxAmp;
+        };
+
+        let noiseValue = sampleHeight(worldX, worldZ);
         
         let normalized = (noiseValue - 0.2) / 0.6;
         normalized = Math.max(0, Math.min(1, normalized));
         
-        let height = (normalized * biome.heightScale) + (biome.elevation * 20);
+        // We also need to blend the BIOME effects at the edges to avoid biome height discrepancies
+        // For a true "mesh", we sample neighboring biome properties if near edges
+        let effectiveHeightScale = biome.heightScale;
+        let effectiveElevation = biome.elevation;
 
-        // Edge Normalization: Blend edges towards a common height to ensure seamless stitching
-        // This is a simpler alternative to referencing neighbors directly
-        const distFromEdgeX = Math.min(x, size - 1 - x);
-        const distFromEdgeZ = Math.min(z, size - 1 - z);
-        const minDistFromEdge = Math.min(distFromEdgeX, distFromEdgeZ);
-
-        if (minDistFromEdge < edgeBlendSize) {
-          const blendFactor = minDistFromEdge / edgeBlendSize;
-          const targetEdgeHeight = 30; // Common height for all edges
-          height = height * blendFactor + targetEdgeHeight * (1 - blendFactor);
+        if (x < blendWidth || x > size - blendWidth || z < blendWidth || z > size - blendWidth) {
+          // Check neighbors
+          const nx = x < blendWidth ? -1 : (x > size - blendWidth ? 1 : 0);
+          const nz = z < blendWidth ? -1 : (z > size - blendWidth ? 1 : 0);
+          
+          if (nx !== 0 || nz !== 0) {
+            const neighborBiome = this.getBiome(chunkX + nx, chunkZ + nz);
+            
+            // Calculate distance factor to neighbor
+            let d = 1.0;
+            if (nx !== 0) d = Math.min(d, (nx < 0 ? x : size - 1 - x) / blendWidth);
+            if (nz !== 0) d = Math.min(d, (nz < 0 ? z : size - 1 - z) / blendWidth);
+            
+            // Linear interpolate biome parameters
+            effectiveHeightScale = neighborBiome.heightScale * (1 - d) + biome.heightScale * d;
+            effectiveElevation = neighborBiome.elevation * (1 - d) + biome.elevation * d;
+          }
         }
-        
+
+        let height = (normalized * effectiveHeightScale) + (effectiveElevation * 20);
         heightmap[z][x] = Math.max(0, Math.min(100, height));
       }
     }
@@ -169,6 +188,7 @@ export class ProperTerrainGenerator {
     const x = chunkX * 0.1;
     const z = chunkZ * 0.1;
 
+    // Use deterministic noise for biomes too, ensures neighbors agree on boundaries
     const elevation = (this.noise2D(x, z) + 1) / 2;
     const temperature = (this.noise2D(x + 100, z + 100) + 1) / 2;
     const moisture = (this.noise2D(x + 200, z + 200) + 1) / 2;
