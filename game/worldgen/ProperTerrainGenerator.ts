@@ -118,19 +118,18 @@ export class ProperTerrainGenerator {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
         // Map chunk local coords to noise space
-        const xVal = (x - size / 2) / zoomFactor + xOffset;
-        const yVal = (z - size / 2) / zoomFactor + yOffset;
+        // Using (x / zoomFactor) + xOffset pattern from script for continuity
+        const xVal = (x / zoomFactor) + (chunkX * size / zoomFactor) + 10000;
+        const yVal = (z / zoomFactor) + (chunkZ * size / zoomFactor) + 10000;
         
         // Get noise value (0-1)
         let noiseValue = this.p5Instance.noise(xVal, yVal);
         
-        // Apply biome-specific scaling and normalization
-        // The script suggests noise rarely goes below 0.2 or above 0.8
-        // We'll normalize and scale based on biome properties
+        // Normalize noiseValue as script assumes min is 0.2 and max is 0.8
         let normalized = (noiseValue - 0.2) / 0.6;
         normalized = Math.max(0, Math.min(1, normalized));
         
-        // Scale by biome height and add elevation
+        // Scale by biome height and add elevation base
         let height = (normalized * biome.heightScale) + (biome.elevation * 20);
         
         // Clamp to 0-100 range
