@@ -312,8 +312,7 @@ export default function WorldViewer() {
 
               const noiseValue = heightmap2D[hr]?.[hc] ?? 0;
               
-              // Algorithm's height calculation for the 3D mesh:
-              // We map the noiseValue directly to height using vertical exaggeration
+              // Direct height conversion mapping
               pos[vi] = noiseValue * heightScale;
             }
             } else {

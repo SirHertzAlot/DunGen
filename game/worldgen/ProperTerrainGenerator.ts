@@ -140,7 +140,6 @@ export class ProperTerrainGenerator {
         
         noiseValue /= maxAmplitude;
         
-        // This noiseValue (0-1) IS the height value.
         heightmap[z][x] = Math.max(0, Math.min(1, noiseValue));
       }
     }
