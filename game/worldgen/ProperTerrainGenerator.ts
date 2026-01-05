@@ -88,7 +88,7 @@ export class ProperTerrainGenerator {
       lastAccessed: Date.now(),
     };
 
-    // Apply smoothing pass to soften edges and peaks
+    // Apply smoothing pass
     this.applySmoothingPass(heightmap, size);
 
     this.chunkCache.set(cacheKey, chunk);
@@ -98,7 +98,7 @@ export class ProperTerrainGenerator {
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated terrain chunk with biome height variance", {
+    log.info("Generated terrain chunk (0-1 normalized)", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
@@ -118,7 +118,7 @@ export class ProperTerrainGenerator {
     const zoomFactor = 200;
     const xOffset = 10000;
     const yOffset = 10000;
-    const blendWidth = 32; // Increased for smoother biome transitions
+    const blendWidth = 32;
 
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
@@ -146,7 +146,7 @@ export class ProperTerrainGenerator {
 
         let noiseValue = sampleHeight(worldX, worldZ);
         
-        // Normalize noiseValue
+        // Normalize noiseValue (0-1)
         let normalized = (noiseValue - 0.2) / 0.6;
         normalized = Math.max(0, Math.min(1, normalized));
         
@@ -168,8 +168,9 @@ export class ProperTerrainGenerator {
           }
         }
 
+        // Final height calculation normalized to 0-1
         let height = (normalized * effectiveHeightScale) + effectiveBaseHeight;
-        heightmap[z][x] = Math.max(0, Math.min(500, height)); // Increased max height for mountains
+        heightmap[z][x] = Math.max(0, Math.min(1, height));
       }
     }
 
@@ -178,7 +179,6 @@ export class ProperTerrainGenerator {
 
   private applySmoothingPass(heightmap: number[][], size: number): void {
     const smoothed = JSON.parse(JSON.stringify(heightmap));
-    
     for (let z = 1; z < size - 1; z++) {
       for (let x = 1; x < size - 1; x++) {
         let total = 0;
@@ -203,38 +203,38 @@ export class ProperTerrainGenerator {
     const moisture = (this.noise2D(x + 200, z + 200) + 1) / 2;
 
     let biomeType: BiomeType["type"] = "grassland";
-    let heightScale = 40;
-    let baseHeight = 20;
+    let heightScale = 0.1; // Variance within biome
+    let baseHeight = 0.2;  // Starting elevation (0-1)
 
-    // Mountain: Highest (Grey)
+    // Mountain: Highest (1.0 is peak)
     if (elevation > 0.75) {
       biomeType = "mountain";
-      heightScale = 300; // Extreme variance for peaks
-      baseHeight = 150;  // High starting point
+      heightScale = 0.5; // Large variance for dramatic peaks
+      baseHeight = 0.5;  // Starts halfway up
     } 
-    // Forest: High (Dark Green)
+    // Forest: Elevated rolling
     else if (moisture > 0.65 && elevation > 0.4) {
       biomeType = "forest";
-      heightScale = 60;
-      baseHeight = 40;
+      heightScale = 0.2;
+      baseHeight = 0.3;
     }
-    // Grassland: Medium (Green)
+    // Grassland: Standard rolling
     else if (elevation > 0.3) {
       biomeType = "grassland";
-      heightScale = 30;
-      baseHeight = 20;
+      heightScale = 0.15;
+      baseHeight = 0.2;
     }
-    // Desert/Sand: Low (Sand color)
+    // Desert/Sand: Near sea level
     else if (elevation > 0.15) {
       biomeType = "desert";
-      heightScale = 15;
-      baseHeight = 10;
+      heightScale = 0.05;
+      baseHeight = 0.1;
     }
-    // Ocean/Water: Lowest (Blue)
+    // Ocean: Lowest (0.0 is depth)
     else {
       biomeType = "ocean";
-      heightScale = 10;
-      baseHeight = 0;
+      heightScale = 0.1;
+      baseHeight = 0.0;
     }
 
     return {
