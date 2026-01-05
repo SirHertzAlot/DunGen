@@ -98,7 +98,7 @@ export class ProperTerrainGenerator {
       if (oldestKey) this.chunkCache.delete(oldestKey);
     }
 
-    log.info("Generated terrain chunk using algorithm logic", {
+    log.info("Generated terrain chunk with height variance restoration", {
       service: "ProperTerrainGenerator",
       chunkX,
       chunkZ,
@@ -115,18 +115,16 @@ export class ProperTerrainGenerator {
     biome: BiomeType
   ): number[][] {
     const heightmap: number[][] = [];
-    const zoomFactor = 100; // From script
-    const xOffset = 10000; // From script
-    const yOffset = 10000; // From script
+    const zoomFactor = 100;
+    const xOffset = 10000;
+    const yOffset = 10000;
 
     for (let z = 0; z < size; z++) {
       heightmap[z] = [];
       for (let x = 0; x < size; x++) {
-        // Absolute world coordinates for seamless sampling
         const worldX = (chunkX * size) + x;
         const worldZ = (chunkZ * size) + z;
         
-        // Sampling multiple octaves to mimic noiseDetail(9, 0.5)
         const xVal = worldX / zoomFactor + xOffset;
         const yVal = worldZ / zoomFactor + yOffset;
         
@@ -135,7 +133,6 @@ export class ProperTerrainGenerator {
         let frequency = 1;
         let maxAmplitude = 0;
         
-        // 9 octaves with 0.5 persistence from algorithm
         for (let i = 0; i < 9; i++) {
           noiseValue += amplitude * (this.noise2D(xVal * frequency, yVal * frequency) + 1) / 2;
           maxAmplitude += amplitude;
@@ -145,11 +142,16 @@ export class ProperTerrainGenerator {
         
         noiseValue /= maxAmplitude;
 
-        // Apply algorithm's normalization logic:
-        // noiseValue is typically between 0 and 1 here.
-        // We maintain the 0-1 range as requested.
+        // Restore height variance while maintaining 0-1 range
+        // We use the noiseValue directly as height, but ensure it captures the full 0-1 range
+        // based on the algorithm's typical output (which tends to cluster in the middle)
+        let finalHeight = (noiseValue - 0.2) / 0.6; // Scale 0.2-0.8 range to 0.0-1.0
         
-        heightmap[z][x] = Math.max(0, Math.min(1, noiseValue));
+        // Re-apply biome-specific height scales and base heights for 3D depth
+        // This prevents the "flat" look by ensuring different biomes have different vertical footprints
+        finalHeight = (finalHeight * biome.heightScale) + biome.baseHeight;
+        
+        heightmap[z][x] = Math.max(0, Math.min(1, finalHeight));
       }
     }
 
@@ -177,26 +179,29 @@ export class ProperTerrainGenerator {
     const x = chunkX * 0.1;
     const z = chunkZ * 0.1;
 
-    // Use deterministic noise for biomes
     const noiseVal = (this.noise2D(x, z) + 1) / 2;
 
     let biomeType: BiomeType["type"] = "grassland";
-    let heightScale = 0.15;
-    let baseHeight = 0.5;
+    let heightScale = 0.2;
+    let baseHeight = 0.3;
 
-    // Mapping biomes to the algorithm's thresholds
+    // Mapping biomes to thresholds from script and applying vertical scaling
     if (noiseVal < 0.4) {
       biomeType = "ocean";
-      baseHeight = 0.2;
+      heightScale = 0.1;
+      baseHeight = 0.0; // Sea level
     } else if (noiseVal < 0.5) {
       biomeType = "desert";
-      baseHeight = 0.45;
+      heightScale = 0.1;
+      baseHeight = 0.15; // Low-lying
     } else if (noiseVal < 0.7) {
       biomeType = "grassland";
-      baseHeight = 0.6;
+      heightScale = 0.25;
+      baseHeight = 0.3; // Rolling hills
     } else {
       biomeType = "forest";
-      baseHeight = 0.75;
+      heightScale = 0.5;
+      baseHeight = 0.5; // High terrain/Mountains
     }
 
     return {
