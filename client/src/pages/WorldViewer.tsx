@@ -312,7 +312,7 @@ export default function WorldViewer() {
 
               const noiseValue = heightmap2D[hr]?.[hc] ?? 0;
               
-              // Direct height conversion mapping
+              // Correct 3D height conversion from 0-1 noise map
               pos[vi] = noiseValue * heightScale;
             }
             } else {
