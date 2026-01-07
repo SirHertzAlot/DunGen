@@ -39,7 +39,7 @@ export default function WorldViewer() {
   const loadTerrainChunks = async (scene: any, THREE: any, seed: number) => {
     const baseChunkSize = 64; // local plane units
     const terrainScale = 4.0; // scales plane to world
-    const heightScale = 50.0; // vertical exaggeration
+    const heightScale = 2.0; // vertical exaggeration
     const segments = 63; // segments per side (=> 64 verts per side)
     const vertsPerSide = segments + 1;
     const chunkWorldSize = baseChunkSize * terrainScale; // 256 world units
@@ -302,19 +302,22 @@ export default function WorldViewer() {
               const heightmapRows = heightmap2D.length;
               const heightmapCols = heightmap2D[0].length;
 
-            for (let vi = 2; vi < pos.length; vi += 3) {
-              const vertexIndex = (vi - 2) / 3;
-              const row = Math.floor(vertexIndex / vertsPerSide);
-              const col = vertexIndex % vertsPerSide;
+              for (let vi = 2; vi < pos.length; vi += 3) {
+                const vertexIndex = (vi - 2) / 3;
+                const row = Math.floor(vertexIndex / vertsPerSide);
+                const col = vertexIndex % vertsPerSide;
 
-              const hr = Math.floor((row / (vertsPerSide - 1)) * (heightmapRows - 1));
-              const hc = Math.floor((col / (vertsPerSide - 1)) * (heightmapCols - 1));
+                // Scale row/col to heightmap indices (inclusive range mapping)
+                const hr = Math.floor(
+                  (row / (vertsPerSide - 1)) * (heightmapRows - 1),
+                );
+                const hc = Math.floor(
+                  (col / (vertsPerSide - 1)) * (heightmapCols - 1),
+                );
 
-              const noiseValue = heightmap2D[hr]?.[hc] ?? 0;
-              
-              // Correct 3D height conversion from 0-1 noise map
-              pos[vi] = noiseValue * heightScale;
-            }
+                const height = heightmap2D[hr]?.[hc];
+                pos[vi] = Number.isFinite(height) ? height * heightScale : 0;
+              }
             } else {
               // Deterministic world-space fallback so edges align between chunks
               // Add seeded randomness for fallback!
